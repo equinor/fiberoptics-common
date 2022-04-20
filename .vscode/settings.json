@@ -1,0 +1,25 @@
+{
+    "python.testing.pytestArgs": ["tests"],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true,
+    "python.formatting.provider": "black",
+    "python.linting.lintOnSave": true,
+    "python.linting.flake8Enabled": true,
+    "python.linting.flake8Args": [
+        // Allow unused imports in __init__.py files
+        "--per-file-ignores=__init__.py:F401",
+        // E203: Whitespace is handled by Black
+        // E501: Line length is handled by Black0
+        // W503: Line break is handled by Black
+        // E712: Pandas Series should be compared to True or False using ==
+        "--ignore=E203,E501,W503,E712",
+    ],
+    "python.sortImports.args": ["--profile=black", "--known-local-folder=fiberoptics"],
+    "[python]": {
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": true,
+        },
+        "editor.rulers": [88],
+    },
+}
