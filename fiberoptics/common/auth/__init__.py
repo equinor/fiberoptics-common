@@ -31,7 +31,9 @@ def get_default_credential(name, scopes, **kwargs):
         allow_unencrypted_storage = (
             os.getenv("ALLOW_UNENCRYPTED_STORAGE", "false").lower() == "true"
         )
-        cache_persistence_filepath = ".authentication-record"
+        cache_persistence_filepath = os.path.expanduser(
+            os.path.join("~", ".authentication-records", name)
+        )
         cache_persistence_options = TokenCachePersistenceOptions(
             name=name,
             allow_unencrypted_storage=allow_unencrypted_storage,
@@ -52,6 +54,7 @@ def get_default_credential(name, scopes, **kwargs):
                     cache_persistence_options=cache_persistence_options,
                 )
                 authentication_record = credential.authenticate(scopes=scopes)
+                os.makedirs(os.path.dirname(cache_persistence_filepath), exist_ok=True)
                 with open(cache_persistence_filepath, "w") as f:
                     f.write(authentication_record.serialize())
         except ValueError as e:
