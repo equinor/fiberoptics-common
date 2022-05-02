@@ -4,7 +4,7 @@ from typing import Callable, List
 
 import pandas as pd
 
-__version__ = "0.0.1"
+__version__ = "0.1.0"
 
 
 def find_continuous_intervals(
