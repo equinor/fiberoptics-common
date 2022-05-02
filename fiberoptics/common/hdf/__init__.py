@@ -5,7 +5,7 @@ import pandas as pd
 
 
 def read(filepath: str):
-    """Read dataframe from HDF file.
+    """Read dataframe and metadata from HDF file.
 
     Parameters
     ----------
@@ -29,8 +29,26 @@ def read(filepath: str):
         return df, metadata
 
 
+def read_metadata(filepath: str):
+    """Read metadata from HDF file.
+
+    Parameters
+    ----------
+    filepath : str
+        The path to the HDF file.
+
+    Returns
+    -------
+    dict
+        The metadata associated with the file.
+
+    """
+    with h5py.File(filepath, mode="r") as file:
+        return dict(file.attrs)
+
+
 def write(filepath: str, df: pd.DataFrame, metadata: dict):
-    """Write dataframe to HDF file.
+    """Write dataframe and metadata to HDF file.
 
     Parameters
     ----------
