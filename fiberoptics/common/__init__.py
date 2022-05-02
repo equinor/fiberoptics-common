@@ -2,6 +2,8 @@ from typing import List
 
 import pandas as pd
 
+__version__ = "0.0.1"
+
 
 def find_continuous_intervals(
     intervals: pd.IntervalIndex, threshold=0
