@@ -38,22 +38,10 @@ def find_continuous_intervals(
     right_sorted = intervals.sort_values(key=lambda x: getattr(x, "right", x))
     left_continuous = intervals.left[1:] - intervals.right[:-1] <= threshold
     right_continuous = right_sorted.left[1:] - right_sorted.right[:-1] <= threshold
-
-    def generator():
-        continuous = [intervals[0]]
-
-        for interval, is_continuous in zip(
-            intervals[1:], left_continuous | right_continuous
-        ):
-            if is_continuous:
-                continuous.append(interval)
-            else:
-                yield pd.IntervalIndex(continuous, dtype=intervals.dtype)
-                continuous = [interval]
-
-        yield pd.IntervalIndex(continuous, dtype=intervals.dtype)
-
-    return list(generator())
+    # Give each interval a number, where continuous intervals have the same number
+    groups = [0, *(~(left_continuous | right_continuous)).cumsum()]
+    # Group by the given numbers and transform each group to an IntervalIndex
+    return list(intervals.to_series().groupby(groups).agg(list).map(pd.IntervalIndex))
 
 
 def combine_continuous_intervals(intervals: pd.IntervalIndex, threshold=0):

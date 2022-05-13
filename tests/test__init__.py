@@ -33,6 +33,24 @@ from fiberoptics.common import (
             id="multiple_intervals",
         ),
         pytest.param(
+            (
+                pd.IntervalIndex.from_arrays(
+                    pd.Index([1, 3, 5, 6, 7, 9, 10, 11, 12, 15, 17, 19, 20, 21]),
+                    pd.Index([1, 3, 5, 6, 7, 9, 10, 11, 12, 15, 17, 19, 20, 21]) + 1,
+                ),
+            ),
+            [
+                pd.IntervalIndex.from_breaks([1, 1 + 1]),
+                pd.IntervalIndex.from_breaks([3, 3 + 1]),
+                pd.IntervalIndex.from_breaks([5, 6, 7, 7 + 1]),
+                pd.IntervalIndex.from_breaks([9, 10, 11, 12, 12 + 1]),
+                pd.IntervalIndex.from_breaks([15, 15 + 1]),
+                pd.IntervalIndex.from_breaks([17, 17 + 1]),
+                pd.IntervalIndex.from_breaks([19, 20, 21, 21 + 1]),
+            ],
+            id="several_intervals",
+        ),
+        pytest.param(
             (pd.IntervalIndex.from_tuples([(2, 3), (1, 2)]),),
             [pd.IntervalIndex.from_tuples([(1, 2), (2, 3)])],
             id="unsorted_intervals",
