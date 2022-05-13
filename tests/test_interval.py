@@ -2,12 +2,12 @@ import pandas as pd
 import pytest
 from pytest_mock import MockerFixture
 
-from fiberoptics.common import (
+from fiberoptics.common.interval import (
     add_interval,
-    cache_decorator,
     combine_continuous_intervals,
     find_continuous_intervals,
     subtract_interval,
+    with_interval_cache,
 )
 
 
@@ -31,6 +31,24 @@ from fiberoptics.common import (
                 pd.IntervalIndex.from_tuples([(5, 6)]),
             ],
             id="multiple_intervals",
+        ),
+        pytest.param(
+            (
+                pd.IntervalIndex.from_arrays(
+                    pd.Index([1, 3, 5, 6, 7, 9, 10, 11, 12, 15, 17, 19, 20, 21]),
+                    pd.Index([1, 3, 5, 6, 7, 9, 10, 11, 12, 15, 17, 19, 20, 21]) + 1,
+                ),
+            ),
+            [
+                pd.IntervalIndex.from_breaks([1, 1 + 1]),
+                pd.IntervalIndex.from_breaks([3, 3 + 1]),
+                pd.IntervalIndex.from_breaks([5, 6, 7, 7 + 1]),
+                pd.IntervalIndex.from_breaks([9, 10, 11, 12, 12 + 1]),
+                pd.IntervalIndex.from_breaks([15, 15 + 1]),
+                pd.IntervalIndex.from_breaks([17, 17 + 1]),
+                pd.IntervalIndex.from_breaks([19, 20, 21, 21 + 1]),
+            ],
+            id="several_intervals",
         ),
         pytest.param(
             (pd.IntervalIndex.from_tuples([(2, 3), (1, 2)]),),
@@ -289,7 +307,7 @@ def test_subtract_interval(self, other, expected):
         ),
     ],
 )
-def test_cache_decorator(mocker: MockerFixture, args_list, expected):
+def test_with_interval_cache(mocker: MockerFixture, args_list, expected):
     def get_data(id, start_time, end_time):
         index = pd.date_range(start_time, end_time, freq=pd.Timedelta("0.8192s"))
         columns = pd.RangeIndex(450, 460)
@@ -298,7 +316,7 @@ def test_cache_decorator(mocker: MockerFixture, args_list, expected):
     get_data_mock = mocker.MagicMock()
     get_data_mock.side_effect = get_data
 
-    get_data_with_cache = cache_decorator(get_data_mock)
+    get_data_with_cache = with_interval_cache(get_data_mock)
 
     for args in args_list:
         get_data_with_cache(*args)
