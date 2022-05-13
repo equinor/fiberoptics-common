@@ -7,7 +7,7 @@ setup(
     install_requires=["pandas"],
     extras_require={
         "auth": ["azure-identity"],
-        "hdf": ["h5py"],
+        "io": ["h5py"],
         "plot": ["matplotlib"],
     },
 )

@@ -4,7 +4,22 @@ import h5py
 import pandas as pd
 
 
-def read(filepath: str):
+def get_filepaths(folder):
+    """Retrieves a list of all filepaths in the given folder and its subfolders.
+
+    Parameters
+    ----------
+    folder : str
+        Path to a given folder.
+
+    list, of type str
+        Containing paths to all files in the given folder.
+
+    """
+    return [os.path.join(dp, f) for dp, ds, fs in os.walk(folder) for f in fs]
+
+
+def read_hdf(filepath: str):
     """Read dataframe and metadata from HDF file.
 
     Parameters
@@ -29,7 +44,7 @@ def read(filepath: str):
         return df, metadata
 
 
-def read_metadata(filepath: str):
+def read_hdf_metadata(filepath: str):
     """Read metadata from HDF file.
 
     Parameters
@@ -47,7 +62,7 @@ def read_metadata(filepath: str):
         return dict(file.attrs)
 
 
-def write(filepath: str, df: pd.DataFrame, metadata: dict):
+def write_hdf(filepath: str, df: pd.DataFrame, metadata: dict):
     """Write dataframe and metadata to HDF file.
 
     Parameters
