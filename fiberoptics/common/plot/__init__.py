@@ -15,6 +15,15 @@ def rawdataplot(df: pd.DataFrame, **kwargs):
     df : DataFrame
         The raw data.
 
+    figsize : (float, float)
+        The size of the figure to create.
+
+    colorbar : bool
+        Whether or not to include a colorbar.
+
+    facecolor : str, default "white"
+        The figure's background color.
+
     cmap : str, default "seismic"
         The color map to use.
         See https://matplotlib.org/stable/tutorials/colors/colormaps.html for a list of
@@ -31,7 +40,21 @@ def rawdataplot(df: pd.DataFrame, **kwargs):
 
     """
 
+    if not isinstance(df, pd.DataFrame):
+        raise TypeError("Expected 'df' to be of type DataFrame")
+
+    if isinstance(df.columns, pd.MultiIndex):
+        if len(df.columns.levels[0]) == 1:
+            df = df[df.columns.levels[0][0]]  # Flatten multi-index
+        else:
+            raise TypeError("Expected 'df' to be two-dimensional")
+
+    if isinstance(df.index, pd.IntervalIndex):
+        df = df.set_index(df.index.left + (df.index.right - df.index.left) / 2)
+
     figsize = kwargs.pop("figsize", (12, 6))
+    colorbar = kwargs.pop("colorbar", False)
+    facecolor = kwargs.pop("facecolor", "white")
     kwargs["cmap"] = kwargs.get("cmap", "seismic")
     kwargs["aspect"] = kwargs.get("aspect", "auto")
     kwargs["interpolation"] = kwargs.get("interpolation", "none")
@@ -39,12 +62,19 @@ def rawdataplot(df: pd.DataFrame, **kwargs):
     kwargs["vmax"] = kwargs.get("vmax", vmax)
     kwargs["vmin"] = kwargs.get("vmin", -vmax)
 
-    plt.figure(figsize=figsize, facecolor="white")
-    plt.imshow(df.T, **kwargs)
+    if "ax" not in kwargs:
+        plt.figure(figsize=figsize, facecolor=facecolor)
 
-    ax, row0, col0 = plt.gca(), df.index[0], df.columns[0]
+    ax = kwargs.pop("ax", plt.gca())
+    iax = ax.imshow(df.T, **kwargs)
+
+    if colorbar:
+        plt.colorbar(iax, ax=ax)
+
+    row0, col0 = df.index[0], df.columns[0]
+    sampling_frequency = df.index[1] - df.index[0]
     ax.xaxis.set_major_formatter(
-        lambda x, pos: (row0 + pd.Timedelta("100us") * x).strftime("%S.%f")
+        lambda x, pos: (row0 + sampling_frequency * x).strftime("%S.%f")
     )
     ax.yaxis.set_major_formatter(lambda x, pos: str(int(col0 + x)))
     ax.text(-0.05, -0.1, row0.strftime("%Y-%m-%d %H:%M%z"), transform=ax.transAxes)
