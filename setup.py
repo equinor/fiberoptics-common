@@ -10,6 +10,6 @@ setup(
         "io": ["h5py"],
         "plot": ["matplotlib"],
         "processing": ["scipy"],
-        "sklearn": ["scikit-learn"],
+        "scikit": ["scikit-learn"],
     },
 )

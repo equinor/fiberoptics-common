@@ -1,7 +1,6 @@
 from typing import Union
 
 import pandas as pd
-
 import sklearn.decomposition
 import sklearn.manifold
 import sklearn.preprocessing
