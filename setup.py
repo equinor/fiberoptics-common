@@ -9,6 +9,7 @@ setup(
         "auth": ["azure-identity"],
         "io": ["h5py"],
         "plot": ["matplotlib"],
+        "processing": ["scipy"],
         "sklearn": ["scikit-learn"],
     },
 )
