@@ -1,5 +1,5 @@
 import functools
-from typing import Callable, List
+from typing import Callable, List, Union
 
 import pandas as pd
 
@@ -105,24 +105,36 @@ def with_interval_cache(get_data_function: Callable):
 
     @functools.wraps(get_data_function)
     def wrapped_function(
-        id: str, start_time: pd.Timestamp, end_time: pd.Timestamp, **kwargs
+        id_or_ids: Union[str, List[str]],
+        start_time: pd.Timestamp,
+        end_time: pd.Timestamp,
+        **kwargs
     ):
+        ids = [id_or_ids] if isinstance(id_or_ids, str) else id_or_ids
         start_time = pd.Timestamp(start_time)
         end_time = pd.Timestamp(end_time)
         missing_intervals = pd.IntervalIndex.from_tuples([(start_time, end_time)])
+        dtype = missing_intervals.dtype  # Use the same time zone
 
-        if id not in cached_intervals:
-            cached_intervals[id] = pd.IntervalIndex([], dtype=missing_intervals.dtype)
-            cached_data[id] = pd.DataFrame()
+        for id in ids:
+            if id not in cached_intervals:
+                cached_intervals[id] = pd.IntervalIndex([], dtype=dtype)
+                cached_data[id] = pd.DataFrame()
 
-        for interval in cached_intervals[id]:
-            missing_intervals = subtract_interval(missing_intervals, interval)
+            for interval in cached_intervals[id]:
+                missing_intervals = subtract_interval(missing_intervals, interval)
 
-        for interval in missing_intervals:
-            df = get_data_function(id, interval.left, interval.right, **kwargs)
-            cached_intervals[id] = add_interval(cached_intervals[id], interval)
-            cached_data[id] = pd.concat([cached_data[id], df]).sort_index()
+            for interval in missing_intervals:
+                df = get_data_function(id, interval.left, interval.right, **kwargs)
+                cached_intervals[id] = add_interval(cached_intervals[id], interval)
+                cached_data[id] = pd.concat([cached_data[id], df]).sort_index()
 
-        return cached_data[id][start_time:end_time]
+        # Multi-level column-index is only returned if a list of ids is given
+        if isinstance(id_or_ids, str):
+            return cached_data[id_or_ids][start_time:end_time]
+
+        return pd.concat(
+            [cached_data[id][start_time:end_time] for id in ids], axis=1, keys=ids
+        )
 
     return wrapped_function
