@@ -8,4 +8,4 @@ from .interval import (
     with_interval_cache,
 )
 
-__version__ = "1.2.0"
+__version__ = "1.2.1"
