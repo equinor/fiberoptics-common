@@ -147,41 +147,47 @@ def serialize_interval_index(intervals: pd.IntervalIndex):
     if intervals.empty:
         return dict(left=[], right=[], dtype=dtype)
 
-    start = intervals[0].left
-    end = intervals[-1].right
-    freq = intervals[0].right - intervals[0].left
+    def serialize_range():
+        start = intervals[0].left
+        end = intervals[-1].right
+        freq = intervals[0].right - intervals[0].left
 
-    if "datetime" in dtype:
-        start = start.value
-        end = end.value
-        freq = freq.value
+        if "datetime" in dtype:
+            start = start.value
+            end = end.value
+            freq = freq.value
 
-    serialized = dict(
-        start=start,
-        end=end,
-        freq=freq,
-        dtype=dtype,
-    )
+        return dict(
+            start=start,
+            end=end,
+            freq=freq,
+            dtype=dtype,
+        )
 
-    try:
+    def serialize_arrays():
+        left = intervals.left
+        right = intervals.right
+
+        if "datetime" in dtype:
+            left = left.view(int)
+            right = right.view(int)
+
+        return dict(
+            left=list(left),
+            right=list(right),
+            dtype=dtype,
+        )
+
+    for serialization_method in [serialize_range, serialize_arrays]:
+        serialized = serialization_method()
         deserialized = deserialize_interval_index(serialized)
-        pd.testing.assert_index_equal(deserialized, intervals)
-        return serialized
-    except AssertionError:
-        pass
+        try:
+            pd.testing.assert_index_equal(deserialized, intervals)
+            return serialized
+        except AssertionError:
+            pass
 
-    left = intervals.left
-    right = intervals.right
-
-    if "datetime" in dtype:
-        left = left.view(int)
-        right = right.view(int)
-
-    return dict(
-        left=list(left),
-        right=list(right),
-        dtype=dtype,
-    )
+    raise ValueError("Serialization failed")
 
 
 def deserialize_interval_index(serialized: dict):
@@ -194,7 +200,7 @@ def deserialize_interval_index(serialized: dict):
     match = re.match(r"datetime64\[ns, (.+)\]", dtype)
     tz = match.group(1) if match is not None else None
 
-    try:
+    def deserialize_range():
         start = serialized["start"]
         end = serialized["end"]
         freq = serialized["freq"]
@@ -209,7 +215,8 @@ def deserialize_interval_index(serialized: dict):
                 end = end.tz_localize("UTC").tz_convert(tz)
 
         return pd.interval_range(start, end, freq=freq, closed=closed)
-    except KeyError:
+
+    def deserialize_arrays():
         left = serialized["left"]
         right = serialized["right"]
 
@@ -222,3 +229,11 @@ def deserialize_interval_index(serialized: dict):
                 right = right.tz_localize("UTC").tz_convert(tz)
 
         return pd.IntervalIndex.from_arrays(left, right, closed=closed)
+
+    for deserialization_method in [deserialize_range, deserialize_arrays]:
+        try:
+            return deserialization_method()
+        except KeyError:
+            pass
+
+    raise ValueError("Deserialization failed")
