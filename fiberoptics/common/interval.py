@@ -1,4 +1,5 @@
 import functools
+import re
 from typing import Callable, List, Union
 
 import pandas as pd
@@ -138,3 +139,86 @@ def with_interval_cache(get_data_function: Callable):
         )
 
     return wrapped_function
+
+
+def serialize_interval_index(intervals: pd.IntervalIndex):
+    dtype = str(intervals.dtype)
+
+    if intervals.empty:
+        return dict(left=[], right=[], dtype=dtype)
+
+    start = intervals[0].left
+    end = intervals[-1].right
+    freq = intervals[0].right - intervals[0].left
+
+    if "datetime" in dtype:
+        start = start.value
+        end = end.value
+        freq = freq.value
+
+    serialized = dict(
+        start=start,
+        end=end,
+        freq=freq,
+        dtype=dtype,
+    )
+
+    try:
+        deserialized = deserialize_interval_index(serialized)
+        pd.testing.assert_index_equal(deserialized, intervals)
+        return serialized
+    except AssertionError:
+        pass
+
+    left = intervals.left
+    right = intervals.right
+
+    if "datetime" in dtype:
+        left = left.view(int)
+        right = right.view(int)
+
+    return dict(
+        left=list(left),
+        right=list(right),
+        dtype=dtype,
+    )
+
+
+def deserialize_interval_index(serialized: dict):
+    # Extract information from the interval index dtype
+    match = re.match(r"interval\[(.+), (.+)\]", serialized["dtype"])
+    dtype = match.group(1)
+    closed = match.group(2)
+
+    # Try to extract timezone information
+    match = re.match(r"datetime64\[ns, (.+)\]", dtype)
+    tz = match.group(1) if match is not None else None
+
+    try:
+        start = serialized["start"]
+        end = serialized["end"]
+        freq = serialized["freq"]
+
+        if dtype.startswith("datetime"):
+            start = pd.Timestamp(start)
+            end = pd.Timestamp(end)
+            freq = pd.Timedelta(freq)
+
+            if tz is not None:
+                start = start.tz_localize("UTC").tz_convert(tz)
+                end = end.tz_localize("UTC").tz_convert(tz)
+
+        return pd.interval_range(start, end, freq=freq, closed=closed)
+    except KeyError:
+        left = serialized["left"]
+        right = serialized["right"]
+
+        if dtype.startswith("datetime"):
+            left = pd.DatetimeIndex(left)
+            right = pd.DatetimeIndex(right)
+
+            if tz is not None:
+                left = left.tz_localize("UTC").tz_convert(tz)
+                right = right.tz_localize("UTC").tz_convert(tz)
+
+        return pd.IntervalIndex.from_arrays(left, right, closed=closed)

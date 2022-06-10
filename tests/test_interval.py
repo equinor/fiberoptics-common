@@ -5,7 +5,9 @@ from pytest_mock import MockerFixture
 from fiberoptics.common.interval import (
     add_interval,
     combine_continuous_intervals,
+    deserialize_interval_index,
     find_continuous_intervals,
+    serialize_interval_index,
     subtract_interval,
     with_interval_cache,
 )
@@ -326,3 +328,269 @@ def test_with_interval_cache(mocker: MockerFixture, args_list, expected):
     assert len(result) == len(expected)
     for r, e in zip(result, expected):
         assert r[0] == e
+
+
+@pytest.mark.parametrize(
+    "input,expected",
+    [
+        pytest.param(
+            pd.IntervalIndex([], dtype="interval[int64, right]"),
+            dict(left=[], right=[], dtype="interval[int64, right]"),
+            id="empty",
+        ),
+        pytest.param(
+            pd.IntervalIndex([], closed="left", dtype="interval[int64, left]"),
+            dict(left=[], right=[], dtype="interval[int64, left]"),
+            id="empty_closed",
+        ),
+        pytest.param(
+            pd.IntervalIndex([], dtype="interval[datetime64[ns], right]"),
+            dict(left=[], right=[], dtype="interval[datetime64[ns], right]"),
+            id="empty_datetime",
+        ),
+        pytest.param(
+            pd.IntervalIndex.from_breaks(pd.DatetimeIndex([], tz="Europe/Oslo")),
+            dict(
+                left=[], right=[], dtype="interval[datetime64[ns, Europe/Oslo], right]"
+            ),
+            id="empty_datetime_timezone",
+        ),
+        pytest.param(
+            pd.IntervalIndex.from_breaks(range(10)),
+            dict(start=0, end=9, freq=1, dtype="interval[int64, right]"),
+            id="continuous",
+        ),
+        pytest.param(
+            pd.IntervalIndex.from_breaks(range(10), closed="left"),
+            dict(start=0, end=9, freq=1, dtype="interval[int64, left]"),
+            id="continuous_closed",
+        ),
+        pytest.param(
+            pd.IntervalIndex.from_breaks([1, 2, 6, 10]),
+            dict(left=[1, 2, 6], right=[2, 6, 10], dtype="interval[int64, right]"),
+            id="noncontinuous",
+        ),
+        pytest.param(
+            pd.IntervalIndex.from_arrays(
+                pd.date_range(start=10e9, end=20e9, freq=pd.Timedelta(1e9)),
+                pd.date_range(start=11e9, end=21e9, freq=pd.Timedelta(1e9)),
+            ),
+            dict(
+                start=10e9,
+                end=21e9,
+                freq=1e9,
+                dtype="interval[datetime64[ns], right]",
+            ),
+            id="continuous_datetime",
+        ),
+        pytest.param(
+            pd.IntervalIndex.from_arrays(
+                pd.date_range(start=10e9, end=20e9, freq=pd.Timedelta(1e9)),
+                pd.date_range(start=11e9, end=21e9, freq=pd.Timedelta(1e9)),
+                closed="left",
+            ),
+            dict(
+                start=10e9,
+                end=21e9,
+                freq=1e9,
+                dtype="interval[datetime64[ns], left]",
+            ),
+            id="continuous_datetime_closed",
+        ),
+        pytest.param(
+            pd.IntervalIndex.from_arrays(
+                pd.date_range(10e9, 20e9, freq=pd.Timedelta(1e9), tz="UTC").tz_convert(
+                    "Europe/Oslo"
+                ),
+                pd.date_range(11e9, 21e9, freq=pd.Timedelta(1e9), tz="UTC").tz_convert(
+                    "Europe/Oslo"
+                ),
+            ),
+            dict(
+                start=10e9,
+                end=21e9,
+                freq=1e9,
+                dtype="interval[datetime64[ns, Europe/Oslo], right]",
+            ),
+            id="continuous_datetime_timezone",
+        ),
+        pytest.param(
+            pd.IntervalIndex.from_arrays(
+                left=pd.DatetimeIndex([10e9, 12e9, 15e9, 20e9]),
+                right=pd.DatetimeIndex([11e9, 13e9, 16e9, 21e9]),
+            ),
+            dict(
+                left=[10e9, 12e9, 15e9, 20e9],
+                right=[11e9, 13e9, 16e9, 21e9],
+                dtype="interval[datetime64[ns], right]",
+            ),
+            id="noncontinuous_datetime",
+        ),
+        pytest.param(
+            pd.IntervalIndex.from_arrays(
+                left=pd.DatetimeIndex([10e9, 12e9, 15e9, 20e9]),
+                right=pd.DatetimeIndex([11e9, 13e9, 16e9, 21e9]),
+                closed="left",
+            ),
+            dict(
+                left=[10e9, 12e9, 15e9, 20e9],
+                right=[11e9, 13e9, 16e9, 21e9],
+                dtype="interval[datetime64[ns], left]",
+            ),
+            id="noncontinuous_datetime_closed",
+        ),
+        pytest.param(
+            pd.IntervalIndex.from_arrays(
+                left=pd.DatetimeIndex([10e9, 12e9, 15e9, 20e9], tz="UTC").tz_convert(
+                    "Europe/Oslo"
+                ),
+                right=pd.DatetimeIndex([11e9, 13e9, 16e9, 21e9], tz="UTC").tz_convert(
+                    "Europe/Oslo"
+                ),
+                closed="left",
+            ),
+            dict(
+                left=[10e9, 12e9, 15e9, 20e9],
+                right=[11e9, 13e9, 16e9, 21e9],
+                dtype="interval[datetime64[ns, Europe/Oslo], left]",
+            ),
+            id="noncontinuous_datetime_timezone",
+        ),
+    ],
+)
+def test_serialize_interval_index(input, expected):
+    result = serialize_interval_index(input)
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    "input,expected",
+    [
+        pytest.param(
+            dict(left=[], right=[], dtype="interval[int64, right]"),
+            pd.IntervalIndex([], dtype="interval[int64, right]"),
+            id="empty",
+        ),
+        pytest.param(
+            dict(left=[], right=[], dtype="interval[int64, left]"),
+            pd.IntervalIndex([], closed="left", dtype="interval[int64, left]"),
+            id="empty_closed",
+        ),
+        pytest.param(
+            dict(left=[], right=[], dtype="interval[datetime64[ns], right]"),
+            pd.IntervalIndex([], dtype="interval[datetime64[ns], right]"),
+            id="empty_datetime",
+        ),
+        pytest.param(
+            dict(
+                left=[], right=[], dtype="interval[datetime64[ns, Europe/Oslo], right]"
+            ),
+            pd.IntervalIndex.from_breaks(pd.DatetimeIndex([], tz="Europe/Oslo")),
+            id="empty_datetime_timezone",
+        ),
+        pytest.param(
+            dict(start=0, end=9, freq=1, dtype="interval[int64, right]"),
+            pd.IntervalIndex.from_breaks(range(10)),
+            id="continuous",
+        ),
+        pytest.param(
+            dict(start=0, end=9, freq=1, dtype="interval[int64, left]"),
+            pd.IntervalIndex.from_breaks(range(10), closed="left"),
+            id="continuous_closed",
+        ),
+        pytest.param(
+            dict(left=[1, 2, 6], right=[2, 6, 10], dtype="interval[int64, right]"),
+            pd.IntervalIndex.from_breaks([1, 2, 6, 10]),
+            id="noncontinuous",
+        ),
+        pytest.param(
+            dict(
+                start=10e9,
+                end=21e9,
+                freq=1e9,
+                dtype="interval[datetime64[ns], right]",
+            ),
+            pd.IntervalIndex.from_arrays(
+                pd.date_range(start=10e9, end=20e9, freq=pd.Timedelta(1e9)),
+                pd.date_range(start=11e9, end=21e9, freq=pd.Timedelta(1e9)),
+            ),
+            id="continuous_datetime",
+        ),
+        pytest.param(
+            dict(
+                start=10e9,
+                end=21e9,
+                freq=1e9,
+                dtype="interval[datetime64[ns], left]",
+            ),
+            pd.IntervalIndex.from_arrays(
+                pd.date_range(start=10e9, end=20e9, freq=pd.Timedelta(1e9)),
+                pd.date_range(start=11e9, end=21e9, freq=pd.Timedelta(1e9)),
+                closed="left",
+            ),
+            id="continuous_datetime_closed",
+        ),
+        pytest.param(
+            dict(
+                start=10e9,
+                end=21e9,
+                freq=1e9,
+                dtype="interval[datetime64[ns, Europe/Oslo], right]",
+            ),
+            pd.IntervalIndex.from_arrays(
+                pd.date_range(10e9, 20e9, freq=pd.Timedelta(1e9), tz="UTC").tz_convert(
+                    "Europe/Oslo"
+                ),
+                pd.date_range(11e9, 21e9, freq=pd.Timedelta(1e9), tz="UTC").tz_convert(
+                    "Europe/Oslo"
+                ),
+            ),
+            id="continuous_datetime_timezone",
+        ),
+        pytest.param(
+            dict(
+                left=[10e9, 12e9, 15e9, 20e9],
+                right=[11e9, 13e9, 16e9, 21e9],
+                dtype="interval[datetime64[ns], right]",
+            ),
+            pd.IntervalIndex.from_arrays(
+                left=pd.DatetimeIndex([10e9, 12e9, 15e9, 20e9]),
+                right=pd.DatetimeIndex([11e9, 13e9, 16e9, 21e9]),
+            ),
+            id="noncontinuous_datetime",
+        ),
+        pytest.param(
+            dict(
+                left=[10e9, 12e9, 15e9, 20e9],
+                right=[11e9, 13e9, 16e9, 21e9],
+                dtype="interval[datetime64[ns], left]",
+            ),
+            pd.IntervalIndex.from_arrays(
+                left=pd.DatetimeIndex([10e9, 12e9, 15e9, 20e9]),
+                right=pd.DatetimeIndex([11e9, 13e9, 16e9, 21e9]),
+                closed="left",
+            ),
+            id="noncontinuous_datetime_closed",
+        ),
+        pytest.param(
+            dict(
+                left=[10e9, 12e9, 15e9, 20e9],
+                right=[11e9, 13e9, 16e9, 21e9],
+                dtype="interval[datetime64[ns, Europe/Oslo], left]",
+            ),
+            pd.IntervalIndex.from_arrays(
+                left=pd.DatetimeIndex([10e9, 12e9, 15e9, 20e9], tz="UTC").tz_convert(
+                    "Europe/Oslo"
+                ),
+                right=pd.DatetimeIndex([11e9, 13e9, 16e9, 21e9], tz="UTC").tz_convert(
+                    "Europe/Oslo"
+                ),
+                closed="left",
+            ),
+            id="noncontinuous_datetime_timezone",
+        ),
+    ],
+)
+def test_deserialize_interval_index(input, expected):
+    result = deserialize_interval_index(input)
+    pd.testing.assert_index_equal(result, expected)
