@@ -157,12 +157,7 @@ def serialize_interval_index(intervals: pd.IntervalIndex):
             end = end.value
             freq = freq.value
 
-        return dict(
-            start=start,
-            end=end,
-            freq=freq,
-            dtype=dtype,
-        )
+        return dict(start=start, end=end, freq=freq, dtype=dtype)
 
     def serialize_arrays():
         left = intervals.left
@@ -172,11 +167,7 @@ def serialize_interval_index(intervals: pd.IntervalIndex):
             left = left.view(int)
             right = right.view(int)
 
-        return dict(
-            left=list(left),
-            right=list(right),
-            dtype=dtype,
-        )
+        return dict(left=list(left), right=list(right), dtype=dtype)
 
     for serialization_method in [serialize_range, serialize_arrays]:
         serialized = serialization_method()
