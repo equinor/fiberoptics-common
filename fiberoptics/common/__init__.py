@@ -1,4 +1,4 @@
-from .interval import (
+from ._interval import (
     add_interval,
     combine_continuous_intervals,
     deserialize_interval_index,
