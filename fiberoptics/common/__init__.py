@@ -1,4 +1,4 @@
-from .interval import (
+from ._interval import (
     add_interval,
     combine_continuous_intervals,
     deserialize_interval_index,
@@ -7,5 +7,6 @@ from .interval import (
     subtract_interval,
     with_interval_cache,
 )
+from ._version import SemanticVersion
 
-__version__ = "1.2.1"
+__version__ = "1.3.0"
