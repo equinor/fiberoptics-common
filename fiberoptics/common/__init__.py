@@ -7,5 +7,6 @@ from ._interval import (
     subtract_interval,
     with_interval_cache,
 )
+from ._version import SemanticVersion
 
 __version__ = "1.2.1"
