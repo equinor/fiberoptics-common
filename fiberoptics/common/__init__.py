@@ -1,3 +1,4 @@
+from . import _parsing as Parser
 from ._interval import (
     add_interval,
     combine_continuous_intervals,
