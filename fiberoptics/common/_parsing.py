@@ -97,6 +97,27 @@ def parse_uuid(value: str) -> str:
     return str(UUID(value))
 
 
+def is_valid_uuid(value):
+    """Checks whether the given value is a UUID.
+
+    Parameters
+    ----------
+    value : Any
+        The value to check.
+
+    Returns
+    -------
+    bool
+        True if the input is a valid UUID and false otherwise.
+
+    """
+    try:
+        parse_uuid(str(value))
+        return True
+    except ValueError:
+        return False
+
+
 def to_snake_case(camelCase: str):
     """Converts camel case API naming conventions to snake case.
 

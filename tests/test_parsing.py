@@ -2,6 +2,7 @@ import pandas as pd
 import pytest
 
 from fiberoptics.common._parsing import (
+    is_valid_uuid,
     parse_bool,
     parse_optional,
     parse_time,
@@ -50,6 +51,20 @@ def test_parse_uuid(value):
 def test_parse_uuid__invalid_input__should_raise(value):
     with pytest.raises(ValueError):
         parse_uuid(value)
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        ("a9cbdf2c-78a4-4e12-a3be-80082c8b8138", True),
+        (["a9cbdf2c-78a4-4e12-a3be-80082c8b8138"], False),
+        ("acd4", False),
+        (12342, False),
+        (True, False),
+    ],
+)
+def test_is_valid_uuid(value, expected):
+    assert is_valid_uuid(value) == expected
 
 
 @pytest.mark.parametrize(
