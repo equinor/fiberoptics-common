@@ -164,8 +164,8 @@ def serialize_interval_index(intervals: pd.IntervalIndex):
         right = intervals.right
 
         if "datetime" in dtype:
-            left = left.view(int)
-            right = right.view(int)
+            left = left.view("int64")
+            right = right.view("int64")
 
         return dict(left=list(left), right=list(right), dtype=dtype)
 
