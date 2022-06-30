@@ -10,4 +10,4 @@ from ._interval import (
 )
 from ._version import SemanticVersion
 
-__version__ = "1.4.1"
+__version__ = "1.5.0"

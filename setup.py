@@ -21,7 +21,7 @@ extras_require["dev"] = [
 
 setup(
     name="fiberoptics-common",
-    version="1.4.1",
+    version="1.5.0",
     packages=PEP420PackageFinder.find(include=["fiberoptics.*"]),
     install_requires=["pandas"],
     extras_require=extras_require,
