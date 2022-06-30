@@ -1,11 +1,80 @@
+import functools
+import inspect
 import re
-from typing import Callable, TypeVar, Union
+from typing import Any, Callable, Literal, TypeVar, Union, get_args, get_origin
 from uuid import UUID
 
 import pandas as pd
 
 _T = TypeVar("_T")
 _R = TypeVar("_R")
+
+
+def auto_parse(types: dict = {}):
+    def decorator(fn):
+        signature = inspect.signature(fn)
+        keys = list(signature.parameters)
+        types_ = {k: v.annotation for k, v in signature.parameters.items()}
+        types_.update(types)
+
+        @functools.wraps(fn)
+        def fn_with_auto_parse(*args, **kwargs):
+            args = tuple(parse_type(v, types_[k]) for k, v in zip(keys, args))
+            kwargs = {k: parse_type(v, types_[k]) for k, v in kwargs.items()}
+            return fn(*args, **kwargs)
+
+        return fn_with_auto_parse
+
+    if callable(types):
+        fn = types
+        types = {}
+        return decorator(fn)
+
+    return decorator
+
+
+def parse_type(value, Type):
+    if Type == "ignore" or Type == inspect._empty:
+        return value
+    if Type == bool:
+        return parse_bool(value)
+    if Type == str:
+        return parse_str(value)
+    if Type == UUID:
+        return parse_uuid(value)
+    if Type == pd.Timestamp:
+        return parse_time(value)
+    if hasattr(Type, "__annotations__") and isinstance(value, dict):
+        return {k: parse_type(v, Type.__annotations__[k]) for k, v in value.items()}
+
+    origin = get_origin(Type)
+
+    if origin == Union:
+        # Handle optional type
+        try:
+            ActualType, MaybeNoneType = get_args(Type)
+        except ValueError:
+            pass
+        else:
+            if MaybeNoneType == type(None):  # noqa: E721
+                return parse_optional(value, lambda x: parse_type(x, ActualType))
+        raise ValueError(f"Unable to parse value with multiple types '{Type}'")
+    if origin == Literal:
+        if value in get_args(Type):
+            return value
+        raise ValueError(f"Expected one of {get_args(Type)} but got '{value}'")
+    if origin == list:
+        try:
+            SubType = get_args(Type)[0]
+        except KeyError:
+            return list(value)
+        else:
+            return [parse_type(item, SubType) for item in value]
+
+    try:
+        return Type(value)
+    except TypeError:
+        raise ValueError(f"Failed to parse value '{value}' of type '{Type}'")
 
 
 def parse_bool(value: bool):
@@ -31,6 +100,32 @@ def parse_bool(value: bool):
     if type(value) != bool:
         raise ValueError("Boolean arguments must be either `True` or `False`")
     return value
+
+
+def parse_str(value: Any):
+    """Parses string input values.
+
+    Using this function prevents unintentional conversion of objects to strings.
+
+    Parameters
+    ----------
+    value : Any
+        The input value.
+
+    Returns
+    -------
+    str
+        The input converted to a string.
+
+    Raises
+    ------
+    ValueError
+        If the input cannot be safely convert to a string, such as lists.
+
+    """
+    if type(value) not in (str, int, UUID):
+        raise ValueError(f"Attempted to convert '{value}' to string")
+    return str(value)
 
 
 def parse_optional(value: _T, parser: Callable[[_T], _R]):
