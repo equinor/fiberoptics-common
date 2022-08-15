@@ -103,3 +103,28 @@ def median_depth_filter(df: pd.DataFrame, length: int) -> pd.DataFrame:
 
     """
     return df.rolling(length, center=True, min_periods=1, axis=1).median()
+
+
+def resample_raw_data(df: pd.DataFrame, dec: int) -> pd.DataFrame:
+    """Performs resampling in time using polyphase filtering.
+
+    Parameters
+    ----------
+    df : DataFrame
+        The input data with time as rows and depth as columns.
+    dec : int
+        Decimation factor, power of 2.
+
+    Returns
+    -------
+    DataFrame
+        Resampled dataframe
+    """
+    from scipy import signal
+
+    nw = 10
+
+    downsampled = signal.resample_poly(df, 1, dec, 0, nw)
+    new_index = df.index[::dec]
+
+    return pd.DataFrame(downsampled, index=new_index, columns=df.columns)
