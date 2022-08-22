@@ -92,6 +92,8 @@ def scatterplot(df: pd.DataFrame, **kwargs):
         - Series are plotted using the index as x-axis and values as y-axis.
         - Dataframes are plotted using first column as x-axis and second as y-axis.
 
+        Intervals are converted to points using their middle values.
+
     figsize : (int, int), optional
         The size of the figure.
 
@@ -112,6 +114,11 @@ def scatterplot(df: pd.DataFrame, **kwargs):
         # Smaller defaults for series
         kwargs["figsize"] = kwargs.get("figsize", (16, 6))
         kwargs["s"] = kwargs.get("s", 5)
+
+    # Convert intervals to points
+    for column in df.columns[:2]:
+        if isinstance(df[column].dtype, pd.IntervalDtype):
+            df[column] = df[column].array.mid
 
     kwargs["figsize"] = kwargs.get("figsize", (16, 10))
     kwargs["s"] = kwargs.get("s", 10)
