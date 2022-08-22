@@ -1,7 +1,115 @@
 import warnings
 
 import matplotlib.pyplot as plt
+import matplotlib.ticker
 import pandas as pd
+
+
+class IndexConverterMixin:
+    def __init__(self, index: pd.Index):
+        self.d0, self.d1 = index[[0, 1]]
+
+    def index2num(self, index: pd.Index):
+        return (index - self.d0) / (self.d1 - self.d0)
+
+    def num2index(self, num: float):
+        return self.d0 + (self.d1 - self.d0) * num
+
+
+class MyDateLocator(matplotlib.ticker.Locator, IndexConverterMixin):
+    def __init__(self, index: pd.DatetimeIndex):
+        super().__init__(index)
+        self._valid_freqs = pd.TimedeltaIndex(
+            [
+                *["1us", "2us", "5us"],
+                *["10us", "20us", "50us"],
+                *["100us", "200us", "500us"],
+                *["1000us", "2000us", "5000us"],
+                *["10000us", "20000us", "50000us"],
+                *["100000us", "200000us", "500000us"],
+                *["1s", "5s", "10s", "15s", "30s"],
+                *["1m", "5m", "10m", "15m", "30m"],
+                *["1h", "2h", "3h", "6h", "12h"],
+                *["1d", "3d", "7d", "14d"],
+            ]
+        )
+
+    def _get_valid_freq(self, target_freq: pd.Timedelta) -> pd.Timedelta:
+        return next(filter(lambda x: target_freq < x, self._valid_freqs))
+
+    def __call__(self):
+        numticks = max(2, self.axis.get_tick_space() // 2)
+        vmin, vmax = self.axis.get_view_interval()
+        dmin, dmax = self.num2index(vmin), self.num2index(vmax)
+        freq = self._get_valid_freq((dmax - dmin) / numticks)
+        dates = pd.date_range(dmin.ceil(freq), dmax.floor(freq), freq=freq)
+        return self.index2num(dates)
+
+
+class MyDateFormatter(matplotlib.ticker.Formatter, IndexConverterMixin):
+    def __init__(self, index: pd.DatetimeIndex):
+        super().__init__(index)
+
+    def _get_diff_component(self, ts1, ts2):
+        components = ("year", "month", "day", "hour", "minute", "second", "microsecond")
+
+        for component in components:
+            if getattr(ts1, component) != getattr(ts2, component):
+                return component
+        return component
+
+    def get_offset(self):
+        if not len(self.locs):
+            return ""
+        dates: pd.DatetimeIndex = self.num2index(self.locs).round("us")
+        component = self._get_diff_component(dates[0], dates[-1])
+        format = {
+            "microsecond": "%d/%m/%Y %H:%M:%S",
+            "second": "%d/%m/%Y %H:%M",
+            "minute": "%d/%m/%Y %H",
+            "hour": "%d/%m/%Y",
+            "day": "%Y",
+            "month": "%Y",
+            "year": "",
+        }[component]
+        return dates[0].strftime(format)
+
+    def format_ticks(self, values):
+        dates: pd.DatetimeIndex = self.num2index(values).round("us")
+        component = self._get_diff_component(dates[0], dates[-1])
+        format = {
+            "microsecond": ".%f",
+            "second": "%S.%f",
+            "minute": ":%M:%S",
+            "hour": "%H:%M",
+            "day": "%d/%m %H",
+            "month": "%d/%m",
+            "year": "%m/%Y",
+        }[component]
+
+        formatted = dates.strftime(format)
+        if "%f" in format:
+            while all(formatted.str[-1] == "0"):
+                formatted = formatted.str[:-1]
+            if all(formatted.str[-1] == "."):
+                formatted = formatted.str[:-1]
+        return formatted
+
+    def __call__(self, value, pos=None):
+        return ""
+
+
+class MyLociLocator(matplotlib.ticker.AutoLocator):
+    def __call__(self):
+        return list(filter(lambda x: x == int(x), super().__call__()))
+
+
+class MyLociFormatter(matplotlib.ticker.Formatter, IndexConverterMixin):
+    def __init__(self, index: pd.Index):
+        super().__init__(index)
+
+    def __call__(self, x, pos=None):
+        return int(self.num2index(x))
 
 
 def rawdataplot(df: pd.DataFrame, **kwargs):
@@ -50,7 +158,7 @@ def rawdataplot(df: pd.DataFrame, **kwargs):
             raise TypeError("Expected 'df' to be two-dimensional")
 
     if isinstance(df.index, pd.IntervalIndex):
-        df = df.set_index(df.index.left + (df.index.right - df.index.left) / 2)
+        df = df.set_index(df.index.mid)
 
     figsize = kwargs.pop("figsize", (12, 6))
     colorbar = kwargs.pop("colorbar", False)
@@ -71,13 +179,10 @@ def rawdataplot(df: pd.DataFrame, **kwargs):
     if colorbar:
         plt.colorbar(iax, ax=ax)
 
-    row0, col0 = df.index[0], df.columns[0]
-    sampling_frequency = df.index[1] - df.index[0]
-    ax.xaxis.set_major_formatter(
-        lambda x, pos: (row0 + sampling_frequency * x).strftime("%S.%f")
-    )
-    ax.yaxis.set_major_formatter(lambda x, pos: str(int(col0 + x)))
-    ax.text(-0.05, -0.1, row0.strftime("%Y-%m-%d %H:%M%z"), transform=ax.transAxes)
+    ax.xaxis.set_major_locator(MyDateLocator(df.index))
+    ax.xaxis.set_major_formatter(MyDateFormatter(df.index))
+    ax.yaxis.set_major_locator(MyLociLocator())
+    ax.yaxis.set_major_formatter(MyLociFormatter(df.columns))
 
 
 def scatterplot(df: pd.DataFrame, **kwargs):
@@ -91,6 +196,8 @@ def scatterplot(df: pd.DataFrame, **kwargs):
     df : Series or DataFrame
         - Series are plotted using the index as x-axis and values as y-axis.
         - Dataframes are plotted using first column as x-axis and second as y-axis.
+
+        Intervals are converted to points using their middle values.
 
     figsize : (int, int), optional
         The size of the figure.
@@ -112,6 +219,11 @@ def scatterplot(df: pd.DataFrame, **kwargs):
         # Smaller defaults for series
         kwargs["figsize"] = kwargs.get("figsize", (16, 6))
         kwargs["s"] = kwargs.get("s", 5)
+
+    # Convert intervals to points
+    for column in df.columns[:2]:
+        if isinstance(df[column].dtype, pd.IntervalDtype):
+            df[column] = df[column].array.mid
 
     kwargs["figsize"] = kwargs.get("figsize", (16, 10))
     kwargs["s"] = kwargs.get("s", 10)
