@@ -19,7 +19,7 @@ class IndexConverterMixin:
 class MyDateLocator(matplotlib.ticker.Locator, IndexConverterMixin):
     def __init__(self, index: pd.DatetimeIndex):
         super().__init__(index)
-        self._delta = pd.TimedeltaIndex(
+        self._valid_freqs = pd.TimedeltaIndex(
             [
                 *["1us", "2us", "5us"],
                 *["10us", "20us", "50us"],
@@ -34,14 +34,14 @@ class MyDateLocator(matplotlib.ticker.Locator, IndexConverterMixin):
             ]
         )
 
-    def _get_freq(self, target_freq: pd.Timedelta):
-        return next(filter(lambda x: target_freq < x, self._delta))
+    def _get_valid_freq(self, target_freq: pd.Timedelta) -> pd.Timedelta:
+        return next(filter(lambda x: target_freq < x, self._valid_freqs))
 
     def __call__(self):
         numticks = max(2, self.axis.get_tick_space() // 2)
         vmin, vmax = self.axis.get_view_interval()
         dmin, dmax = self.num2index(vmin), self.num2index(vmax)
-        freq = self._get_freq((dmax - dmin) / numticks)
+        freq = self._get_valid_freq((dmax - dmin) / numticks)
         dates = pd.date_range(dmin.ceil(freq), dmax.floor(freq), freq=freq)
         return self.index2num(dates)
 
