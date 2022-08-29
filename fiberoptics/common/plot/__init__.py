@@ -50,48 +50,35 @@ class MyDateFormatter(matplotlib.ticker.Formatter, IndexConverterMixin):
     def __init__(self, index: pd.DatetimeIndex):
         super().__init__(index)
 
-    def _get_diff_component(self, ts1, ts2):
-        components = ("year", "month", "day", "hour", "minute", "second", "microsecond")
+    def _get_diff_component(self, ts1, ts2, reversed=False):
+        components = enumerate(
+            ("year", "month", "day", "hour", "minute", "second", "microsecond")
+        )
 
-        for component in components:
+        if reversed:
+            components = tuple(components)[::-1]
+
+        for i, component in components:
             if getattr(ts1, component) != getattr(ts2, component):
-                return component
-        return component
+                return i
+        return i
 
     def get_offset(self):
         if not len(self.locs):
             return ""
         dates: pd.DatetimeIndex = self.num2index(self.locs).round("us")
-        component = self._get_diff_component(dates[0], dates[-1])
-        format = {
-            "microsecond": "%d/%m/%Y %H:%M:%S",
-            "second": "%d/%m/%Y %H:%M",
-            "minute": "%d/%m/%Y %H",
-            "hour": "%d/%m/%Y",
-            "day": "%Y",
-            "month": "%Y",
-            "year": "",
-        }[component]
+        largest = self._get_diff_component(dates[0], dates[-1])
+        format = "%Y-%m-%d %H:%M:%S.%f"[: largest * 3]
         return dates[0].strftime(format)
 
     def format_ticks(self, values):
         dates: pd.DatetimeIndex = self.num2index(values).round("us")
-        component = self._get_diff_component(dates[0], dates[-1])
-        format = {
-            "microsecond": ".%f",
-            "second": "%S.%f",
-            "minute": ":%M:%S",
-            "hour": "%H:%M",
-            "day": "%d/%m %H",
-            "month": "%d/%m",
-            "year": "%m/%Y",
-        }[component]
-
+        largest = self._get_diff_component(dates[0], dates[-1])
+        smallest = self._get_diff_component(dates[0], dates[1], reversed=True)
+        format = "%Y-%m-%d %H:%M:%S.%f"[largest * 3 : smallest * 3 + 2]
         formatted = dates.strftime(format)
-        if "%f" in format:
+        if ".%f" in format:
             while all(formatted.str[-1] == "0"):
-                formatted = formatted.str[:-1]
-            if all(formatted.str[-1] == "."):
                 formatted = formatted.str[:-1]
         return formatted
 
