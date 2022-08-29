@@ -222,8 +222,10 @@ def scatterplot(df: pd.DataFrame, **kwargs):
 
     # Convert intervals to points
     for column in df.columns[:2]:
-        if isinstance(df[column].dtype, pd.IntervalDtype):
+        if df[column].dtype == "interval":
             df[column] = df[column].array.mid
+        if df[column].dtype == "bool":
+            df[column] = df[column].astype("int")
 
     kwargs["figsize"] = kwargs.get("figsize", (16, 10))
     kwargs["s"] = kwargs.get("s", 10)
