@@ -146,6 +146,9 @@ def rawdataplot(df: pd.DataFrame, **kwargs):
     vmax, vmin : float, default +/-max(abs(df))
         The range covered by the color map.
 
+    resample : bool, default True
+        If True, dates are resampled to the minimum frequency present in the index.
+
     """
 
     if not isinstance(df, pd.DataFrame):
@@ -163,6 +166,12 @@ def rawdataplot(df: pd.DataFrame, **kwargs):
     figsize = kwargs.pop("figsize", (12, 6))
     colorbar = kwargs.pop("colorbar", False)
     facecolor = kwargs.pop("facecolor", "white")
+    resample = kwargs.pop("resample", True)
+
+    if isinstance(df.index, pd.DatetimeIndex) and resample:
+        min_index_gap = min(df.index[1:] - df.index[:-1])
+        df = df.resample(min_index_gap).first()
+
     kwargs["cmap"] = kwargs.get("cmap", "seismic")
     kwargs["aspect"] = kwargs.get("aspect", "auto")
     kwargs["interpolation"] = kwargs.get("interpolation", "none")
