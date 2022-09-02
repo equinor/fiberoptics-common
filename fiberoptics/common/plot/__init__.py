@@ -35,14 +35,25 @@ class MyDateLocator(matplotlib.ticker.Locator, IndexConverterMixin):
         )
 
     def _get_valid_freq(self, target_freq: pd.Timedelta) -> pd.Timedelta:
-        return next(filter(lambda x: target_freq < x, self._valid_freqs))
+        try:
+            return next(filter(lambda x: target_freq < x, self._valid_freqs))
+        except StopIteration:
+            return self._valid_freqs[-1]
 
     def __call__(self):
         numticks = max(2, self.axis.get_tick_space() // 2)
         vmin, vmax = self.axis.get_view_interval()
         dmin, dmax = self.num2index(vmin), self.num2index(vmax)
-        freq = self._get_valid_freq((dmax - dmin) / numticks)
-        dates = pd.date_range(dmin.ceil(freq), dmax.floor(freq), freq=freq)
+        target_freq = (dmax - dmin) / numticks
+        if target_freq > pd.Timedelta("365d"):
+            num_years = int(target_freq / pd.Timedelta("365d"))
+            dates = pd.date_range(dmin.floor("d"), dmax, freq=f"{num_years}YS")
+        elif target_freq > pd.Timedelta("31d"):
+            num_months = int(target_freq / pd.Timedelta("31d"))
+            dates = pd.date_range(dmin.floor("d"), dmax, freq=f"{num_months}MS")
+        else:
+            freq = self._get_valid_freq(target_freq)
+            dates = pd.date_range(dmin.ceil(freq), dmax.floor(freq), freq=freq)
         return self.index2num(dates)
 
 
@@ -50,48 +61,36 @@ class MyDateFormatter(matplotlib.ticker.Formatter, IndexConverterMixin):
     def __init__(self, index: pd.DatetimeIndex):
         super().__init__(index)
 
-    def _get_diff_component(self, ts1, ts2):
+    def _get_diff_component(self, ts1, ts2, reversed=False):
         components = ("year", "month", "day", "hour", "minute", "second", "microsecond")
+        components = tuple(enumerate(components))
 
-        for component in components:
+        if reversed:
+            components = components[::-1]
+
+        for i, component in components:
             if getattr(ts1, component) != getattr(ts2, component):
-                return component
-        return component
+                return i
+        return components[0][0]
 
     def get_offset(self):
         if not len(self.locs):
             return ""
         dates: pd.DatetimeIndex = self.num2index(self.locs).round("us")
-        component = self._get_diff_component(dates[0], dates[-1])
-        format = {
-            "microsecond": "%d/%m/%Y %H:%M:%S",
-            "second": "%d/%m/%Y %H:%M",
-            "minute": "%d/%m/%Y %H",
-            "hour": "%d/%m/%Y",
-            "day": "%Y",
-            "month": "%Y",
-            "year": "",
-        }[component]
+        largest = self._get_diff_component(dates[0], dates[-1])
+        format = "%Y-%m-%d %H:%M:%S.%f"[: largest * 3]
         return dates[0].strftime(format)
 
     def format_ticks(self, values):
         dates: pd.DatetimeIndex = self.num2index(values).round("us")
-        component = self._get_diff_component(dates[0], dates[-1])
-        format = {
-            "microsecond": ".%f",
-            "second": "%S.%f",
-            "minute": ":%M:%S",
-            "hour": "%H:%M",
-            "day": "%d/%m %H",
-            "month": "%d/%m",
-            "year": "%m/%Y",
-        }[component]
-
+        if len(dates) < 2:
+            return list(dates.tz_localize(None).astype(str))
+        largest = self._get_diff_component(dates[0], dates[-1])
+        smallest = self._get_diff_component(dates[0], dates[1], reversed=True)
+        format = "%Y-%m-%d %H:%M:%S.%f"[largest * 3 : smallest * 3 + 2]
         formatted = dates.strftime(format)
-        if "%f" in format:
+        if ".%f" in format:
             while all(formatted.str[-1] == "0"):
-                formatted = formatted.str[:-1]
-            if all(formatted.str[-1] == "."):
                 formatted = formatted.str[:-1]
         return formatted
 
@@ -146,6 +145,10 @@ def rawdataplot(df: pd.DataFrame, **kwargs):
     vmax, vmin : float, default +/-max(abs(df))
         The range covered by the color map.
 
+    resample : bool, default True
+        Dates are resampled to the minimum frequency present in the index.
+        A linear time index is necessary to display correct labels.
+
     """
 
     if not isinstance(df, pd.DataFrame):
@@ -163,6 +166,12 @@ def rawdataplot(df: pd.DataFrame, **kwargs):
     figsize = kwargs.pop("figsize", (12, 6))
     colorbar = kwargs.pop("colorbar", False)
     facecolor = kwargs.pop("facecolor", "white")
+    resample = kwargs.pop("resample", True)
+
+    if isinstance(df.index, pd.DatetimeIndex) and resample:
+        min_index_gap = min(df.index[1:] - df.index[:-1])
+        df = df.resample(min_index_gap, origin="start").first()
+
     kwargs["cmap"] = kwargs.get("cmap", "seismic")
     kwargs["aspect"] = kwargs.get("aspect", "auto")
     kwargs["interpolation"] = kwargs.get("interpolation", "none")
@@ -222,8 +231,10 @@ def scatterplot(df: pd.DataFrame, **kwargs):
 
     # Convert intervals to points
     for column in df.columns[:2]:
-        if isinstance(df[column].dtype, pd.IntervalDtype):
+        if df[column].dtype == "interval":
             df[column] = df[column].array.mid
+        if df[column].dtype == "bool":
+            df[column] = df[column].astype("int")
 
     kwargs["figsize"] = kwargs.get("figsize", (16, 10))
     kwargs["s"] = kwargs.get("s", 10)
