@@ -36,7 +36,7 @@ class MyDateLocator(matplotlib.ticker.Locator, IndexConverterMixin):
 
     def _get_valid_freq(self, target_freq: pd.Timedelta) -> pd.Timedelta:
         try:
-        return next(filter(lambda x: target_freq < x, self._valid_freqs))
+            return next(filter(lambda x: target_freq < x, self._valid_freqs))
         except StopIteration:
             return self._valid_freqs[-1]
 
@@ -53,7 +53,7 @@ class MyDateLocator(matplotlib.ticker.Locator, IndexConverterMixin):
             dates = pd.date_range(dmin.floor("d"), dmax, freq=f"{num_months}MS")
         else:
             freq = self._get_valid_freq(target_freq)
-        dates = pd.date_range(dmin.ceil(freq), dmax.floor(freq), freq=freq)
+            dates = pd.date_range(dmin.ceil(freq), dmax.floor(freq), freq=freq)
         return self.index2num(dates)
 
 
@@ -62,17 +62,16 @@ class MyDateFormatter(matplotlib.ticker.Formatter, IndexConverterMixin):
         super().__init__(index)
 
     def _get_diff_component(self, ts1, ts2, reversed=False):
-        components = enumerate(
-            ("year", "month", "day", "hour", "minute", "second", "microsecond")
-        )
+        components = ("year", "month", "day", "hour", "minute", "second", "microsecond")
+        components = tuple(enumerate(components))
 
         if reversed:
-            components = tuple(components)[::-1]
+            components = components[::-1]
 
         for i, component in components:
             if getattr(ts1, component) != getattr(ts2, component):
                 return i
-        return i
+        return components[0][0]
 
     def get_offset(self):
         if not len(self.locs):
@@ -84,6 +83,8 @@ class MyDateFormatter(matplotlib.ticker.Formatter, IndexConverterMixin):
 
     def format_ticks(self, values):
         dates: pd.DatetimeIndex = self.num2index(values).round("us")
+        if len(dates) < 2:
+            return list(dates.tz_localize(None).astype(str))
         largest = self._get_diff_component(dates[0], dates[-1])
         smallest = self._get_diff_component(dates[0], dates[1], reversed=True)
         format = "%Y-%m-%d %H:%M:%S.%f"[largest * 3 : smallest * 3 + 2]
