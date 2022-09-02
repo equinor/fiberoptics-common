@@ -134,7 +134,8 @@ def rawdataplot(df: pd.DataFrame, **kwargs):
         The range covered by the color map.
 
     resample : bool, default True
-        If True, dates are resampled to the minimum frequency present in the index.
+        Dates are resampled to the minimum frequency present in the index.
+        A linear time index is necessary to display correct labels.
 
     """
 
@@ -157,7 +158,7 @@ def rawdataplot(df: pd.DataFrame, **kwargs):
 
     if isinstance(df.index, pd.DatetimeIndex) and resample:
         min_index_gap = min(df.index[1:] - df.index[:-1])
-        df = df.resample(min_index_gap).first()
+        df = df.resample(min_index_gap, origin="start").first()
 
     kwargs["cmap"] = kwargs.get("cmap", "seismic")
     kwargs["aspect"] = kwargs.get("aspect", "auto")
