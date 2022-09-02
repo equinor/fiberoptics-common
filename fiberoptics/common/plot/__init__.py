@@ -35,13 +35,24 @@ class MyDateLocator(matplotlib.ticker.Locator, IndexConverterMixin):
         )
 
     def _get_valid_freq(self, target_freq: pd.Timedelta) -> pd.Timedelta:
+        try:
         return next(filter(lambda x: target_freq < x, self._valid_freqs))
+        except StopIteration:
+            return self._valid_freqs[-1]
 
     def __call__(self):
         numticks = max(2, self.axis.get_tick_space() // 2)
         vmin, vmax = self.axis.get_view_interval()
         dmin, dmax = self.num2index(vmin), self.num2index(vmax)
-        freq = self._get_valid_freq((dmax - dmin) / numticks)
+        target_freq = (dmax - dmin) / numticks
+        if target_freq > pd.Timedelta("365d"):
+            num_years = int(target_freq / pd.Timedelta("365d"))
+            dates = pd.date_range(dmin.floor("d"), dmax, freq=f"{num_years}YS")
+        elif target_freq > pd.Timedelta("31d"):
+            num_months = int(target_freq / pd.Timedelta("31d"))
+            dates = pd.date_range(dmin.floor("d"), dmax, freq=f"{num_months}MS")
+        else:
+            freq = self._get_valid_freq(target_freq)
         dates = pd.date_range(dmin.ceil(freq), dmax.floor(freq), freq=freq)
         return self.index2num(dates)
 
