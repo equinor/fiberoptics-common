@@ -71,3 +71,24 @@ def get_default_credential(name, scopes, **kwargs):
     )
 
     return credential
+
+
+def remove_cached_credential(name):
+    """Removes cached credential by name.
+
+    Parameters
+    ----------
+    name : str
+        Name of previously cached credential.
+
+    """
+    # This is where the session information is stored
+    authentication_records_filepath = os.path.expanduser(
+        os.path.join("~", ".authentication-records", name)
+    )
+    # This is where the actual credentials are stored
+    identity_service_filepath = os.path.expanduser(
+        os.path.join("~", ".IdentityService", name)
+    )
+    os.remove(authentication_records_filepath)
+    os.remove(identity_service_filepath)
