@@ -169,12 +169,12 @@ def parse_time(value: Union[str, int, pd.Timestamp]):
     return time
 
 
-def parse_uuid(value: str) -> str:
+def parse_uuid(value: Any) -> str:
     """Parses strings expected to be UUIDs.
 
     Parameters
     ----------
-    value : str
+    value : Any
         The input value.
 
     Returns
@@ -189,10 +189,10 @@ def parse_uuid(value: str) -> str:
         If the input value is not a valid UUID.
 
     """
-    return str(UUID(value))
+    return str(UUID(str(value)))
 
 
-def is_valid_uuid(value):
+def is_valid_uuid(value: Any) -> bool:
     """Checks whether the given value is a UUID.
 
     Parameters
@@ -207,7 +207,7 @@ def is_valid_uuid(value):
 
     """
     try:
-        parse_uuid(str(value))
+        parse_uuid(value)
         return True
     except ValueError:
         return False
