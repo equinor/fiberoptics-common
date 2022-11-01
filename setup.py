@@ -20,6 +20,12 @@ extras_require["dev"] = [
     "pytest",
 ]
 
+extras_require["docs"] = [
+    "sphinx",
+    "sphinx_design",
+    "sphinx_rtd_theme",
+]
+
 setup(
     name="fiberoptics-common",
     version="1.6.3",
