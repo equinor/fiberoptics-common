@@ -1,3 +1,4 @@
+import math
 import warnings
 
 import matplotlib.pyplot as plt
@@ -45,11 +46,11 @@ class MyDateLocator(matplotlib.ticker.Locator, IndexConverterMixin):
         vmin, vmax = self.axis.get_view_interval()
         dmin, dmax = self.num2index(vmin), self.num2index(vmax)
         target_freq = (dmax - dmin) / numticks
-        if target_freq > pd.Timedelta("365d"):
-            num_years = int(target_freq / pd.Timedelta("365d"))
+        if target_freq > pd.Timedelta("365d") / 2:
+            num_years = math.ceil(target_freq / pd.Timedelta("365d"))
             dates = pd.date_range(dmin.floor("d"), dmax, freq=f"{num_years}YS")
-        elif target_freq > pd.Timedelta("31d"):
-            num_months = int(target_freq / pd.Timedelta("31d"))
+        elif target_freq > pd.Timedelta("31d") / 2:
+            num_months = math.ceil(target_freq / pd.Timedelta("31d"))
             dates = pd.date_range(dmin.floor("d"), dmax, freq=f"{num_months}MS")
         else:
             freq = self._get_valid_freq(target_freq)
@@ -188,8 +189,9 @@ def rawdataplot(df: pd.DataFrame, **kwargs):
     if colorbar:
         plt.colorbar(iax, ax=ax)
 
-    ax.xaxis.set_major_locator(MyDateLocator(df.index))
-    ax.xaxis.set_major_formatter(MyDateFormatter(df.index))
+    if isinstance(df.index, pd.DatetimeIndex) and resample:
+        ax.xaxis.set_major_locator(MyDateLocator(df.index))
+        ax.xaxis.set_major_formatter(MyDateFormatter(df.index))
     ax.yaxis.set_major_locator(MyLociLocator())
     ax.yaxis.set_major_formatter(MyLociFormatter(df.columns))
 
