@@ -2,7 +2,7 @@ import pandas as pd
 import pytest
 from pytest_mock import MockerFixture
 
-from fiberoptics.common._interval import (
+from fiberoptics.common.misc._interval import (
     add_interval,
     combine_continuous_intervals,
     deserialize_interval_index,

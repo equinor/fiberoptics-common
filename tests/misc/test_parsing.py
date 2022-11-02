@@ -4,7 +4,7 @@ import uuid
 import pandas as pd
 import pytest
 
-from fiberoptics.common._parsing import (
+from fiberoptics.common.misc.Parser import (
     auto_parse,
     is_valid_uuid,
     parse_bool,
