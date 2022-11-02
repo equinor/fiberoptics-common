@@ -43,6 +43,7 @@ autodoc_typehints = "none"
 # https://www.sphinx-doc.org/en/master/usage/extensions/autosummary.html
 autosummary_generate = True
 autosummary_generate_overwrite = True
+autosummary_imported_members = True
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]

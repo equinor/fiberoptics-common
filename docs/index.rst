@@ -1,20 +1,27 @@
-.. fiberoptics-common documentation master file, created by
-   sphinx-quickstart on Tue Nov  1 10:42:06 2022.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
 
-Welcome to fiberoptics-common's documentation!
-==============================================
+******************
+fiberoptics-common
+******************
 
-.. toctree::
-   :maxdepth: 2
-   :caption: Contents:
+**Date**: |today| **Version**: |version|
+
+Getting started
+===============
 
 
 
-Indices and tables
-==================
+API reference
+=============
 
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+.. autosummary::
+   :template: autosummary/main.rst
+   :toctree: api
+   :recursive:
+
+   fiberoptics.common.auth
+   fiberoptics.common.io
+   fiberoptics.common.misc
+   fiberoptics.common.plot
+   fiberoptics.common.processing
+   fiberoptics.common.scikit
+
