@@ -1,13 +1,13 @@
 import functools
 import inspect
 import re
-from typing import Any, Callable, Literal, TypeVar, Union, get_args, get_origin
-from uuid import UUID
+import typing
+import uuid
 
 import pandas as pd
 
-_T = TypeVar("_T")
-_R = TypeVar("_R")
+_T = typing.TypeVar("_T")
+_R = typing.TypeVar("_R")
 
 
 def auto_parse(types: dict = {}):
@@ -40,32 +40,33 @@ def parse_type(value, Type):
         return parse_bool(value)
     if Type == str:
         return parse_str(value)
-    if Type == UUID:
+    if Type == uuid.UUID:
         return parse_uuid(value)
     if Type == pd.Timestamp:
         return parse_time(value)
     if hasattr(Type, "__annotations__") and isinstance(value, dict):
         return {k: parse_type(v, Type.__annotations__[k]) for k, v in value.items()}
 
-    origin = get_origin(Type)
+    origin = typing.get_origin(Type)
+    args = typing.get_args(Type)
 
-    if origin == Union:
+    if origin == typing.Union:
         # Handle optional type
         try:
-            ActualType, MaybeNoneType = get_args(Type)
+            ActualType, MaybeNoneType = args
         except ValueError:
             pass
         else:
             if MaybeNoneType == type(None):  # noqa: E721
                 return parse_optional(value, lambda x: parse_type(x, ActualType))
         raise ValueError(f"Unable to parse value with multiple types '{Type}'")
-    if origin == Literal:
-        if value in get_args(Type):
+    if origin == typing.Literal:
+        if value in args:
             return value
-        raise ValueError(f"Expected one of {get_args(Type)} but got '{value}'")
+        raise ValueError(f"Expected one of {args} but got '{value}'")
     if origin == list:
         try:
-            SubType = get_args(Type)[0]
+            SubType = args[0]
         except KeyError:
             return list(value)
         else:
@@ -102,7 +103,7 @@ def parse_bool(value: bool):
     return value
 
 
-def parse_str(value: Any):
+def parse_str(value: typing.Any):
     """Parses string input values.
 
     Using this function prevents unintentional conversion of objects to strings.
@@ -123,12 +124,12 @@ def parse_str(value: Any):
         If the input cannot be safely convert to a string, such as lists.
 
     """
-    if type(value) not in (str, int, UUID):
+    if type(value) not in (str, int, uuid.UUID):
         raise ValueError(f"Attempted to convert '{value}' to string")
     return str(value)
 
 
-def parse_optional(value: _T, parser: Callable[[_T], _R]):
+def parse_optional(value: _T, parser: typing.Callable[[_T], _R]):
     """Applies parsing only if input is not None.
 
     Parameters
@@ -147,7 +148,7 @@ def parse_optional(value: _T, parser: Callable[[_T], _R]):
     return None if value is None else parser(value)
 
 
-def parse_time(value: Union[str, int, pd.Timestamp]):
+def parse_time(value: typing.Union[str, int, pd.Timestamp]):
     """Parses input to a Timestamp object.
 
     Parameters
@@ -169,7 +170,7 @@ def parse_time(value: Union[str, int, pd.Timestamp]):
     return time
 
 
-def parse_uuid(value: Any) -> str:
+def parse_uuid(value: typing.Any) -> str:
     """Parses strings expected to be UUIDs.
 
     Parameters
@@ -189,10 +190,10 @@ def parse_uuid(value: Any) -> str:
         If the input value is not a valid UUID.
 
     """
-    return str(UUID(str(value)))
+    return str(uuid.UUID(str(value)))
 
 
-def is_valid_uuid(value: Any) -> bool:
+def is_valid_uuid(value: typing.Any) -> bool:
     """Checks whether the given value is a UUID.
 
     Parameters

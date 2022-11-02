@@ -3,9 +3,13 @@ class SemanticVersion(tuple):
 
     Semantic versioning is a standard defined by https://semver.org/ with the following
     increments:
-    - `major` version when you make incompatible API changes,
-    - `minor` version when you add functionality in a backwards compatible manner, and
-    - `patch` version when you make backwards compatible bug fixes.
+
+    major
+        When you make breaking changes
+    minor
+        When you add functionality in a backwards compatible manner
+    patch
+        When you make backwards compatible changes
 
     """
 
