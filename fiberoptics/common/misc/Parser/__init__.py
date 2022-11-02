@@ -1,3 +1,4 @@
+"""Functions for parsing input arguments."""
 import functools
 import inspect
 import re
@@ -10,7 +11,17 @@ _T = typing.TypeVar("_T")
 _R = typing.TypeVar("_R")
 
 
-def auto_parse(types: dict = {}):
+def auto_parse(types: typing.Dict[str, typing.Type] = {}):
+    """Function decorator to perform automatic parsing of input arguments.
+
+    Parameters
+    ----------
+    types : dict of types, optional
+        The function's type annotations are used as defaults, which can be overridden by
+        specifying a dictionary of argument names together with their types.
+
+    """
+
     def decorator(fn):
         signature = inspect.signature(fn)
         keys = list(signature.parameters)
@@ -33,7 +44,27 @@ def auto_parse(types: dict = {}):
     return decorator
 
 
-def parse_type(value, Type):
+def parse_type(value: typing.Any, Type: _T) -> _T:
+    """Parses a value given a specific type.
+
+    Parameters
+    ----------
+    value : Any
+        The value to parse.
+    Type : T
+        The type used to decide how to parse the value.
+
+    Returns
+    -------
+    T
+        The parsed value.
+
+    Raises
+    ------
+    ValueError
+        If the target type is ambiguous or the value cannot be parsed to the given type.
+
+    """
     if Type == "ignore" or Type == inspect._empty:
         return value
     if Type == bool:

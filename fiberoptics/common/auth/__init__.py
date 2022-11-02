@@ -1,8 +1,9 @@
+"""Utility functions for authentication and credential caching."""
 import os
 
 
 def get_default_credential(name, scopes, **kwargs):
-    """Retrieves default credentials.
+    """Retrieves default credential (using cache if available).
 
     Parameters
     ----------

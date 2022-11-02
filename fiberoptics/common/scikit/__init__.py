@@ -1,3 +1,4 @@
+"""Wrappers around sklearn classes to handle dataframes."""
 from typing import Union
 
 import pandas as pd

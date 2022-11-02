@@ -1,3 +1,4 @@
+"""Collection of miscellaneous dependency-free functionality."""
 from . import Parser
 from ._interval import (
     add_interval,

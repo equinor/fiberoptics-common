@@ -1,3 +1,4 @@
+"""Powerful plotting functions for ease-of-use."""
 import warnings
 
 import matplotlib.pyplot as plt
