@@ -1,0 +1,12 @@
+/* Version 5.3.0 of Sphinx contains this css rule which prevents
+responsive tables from overflowing:
+
+.rst-content p a {
+    overflow-wrap: anywhere;
+}
+
+This is added to enable overflowing once again: */
+
+.rst-content .wy-table-responsive p a {
+    overflow-wrap: unset;
+}
