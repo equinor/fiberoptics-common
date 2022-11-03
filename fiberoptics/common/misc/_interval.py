@@ -69,17 +69,67 @@ def combine_continuous_intervals(intervals: pd.IntervalIndex, threshold=0):
     return pd.IntervalIndex(list(map(combine, result)))
 
 
-def add_interval(self: pd.IntervalIndex, other: pd.Interval):
-    """Add an interval to the existing intervals."""
-    other = pd.IntervalIndex([other], dtype=self.dtype)
-    return combine_continuous_intervals(self.append(other))
+def add_interval(index: pd.IntervalIndex, other: pd.Interval):
+    """Add an interval to a continuous interval index.
+
+    A continuous interval index has one specific property; none of the intervals
+    overlap. Hence, adding intervals to a continuous interval index has the following
+    behavior:
+
+    Adding an interval which does not overlap with the index
+        The interval is simply added.
+    Adding an interval which overlaps partially with an interval in the index
+        The index' interval is extended.
+    Adding an interval which overlaps completely with an interval in the index
+        The interval is ignored.
+
+    Parameters
+    ----------
+    index : IntervalIndex
+        The continuous interval index.
+    other : Interval
+        The interval to add. Must have the same interval type.
+
+    Returns
+    -------
+    IntervalIndex
+        The new index after adding the interval.
+
+    """
+    other = pd.IntervalIndex([other], dtype=index.dtype)
+    return combine_continuous_intervals(index.append(other))
 
 
-def subtract_interval(self: pd.IntervalIndex, other: pd.Interval):
-    """Subtract an interval from the existing intervals."""
+def subtract_interval(index: pd.IntervalIndex, other: pd.Interval):
+    """Subtract an interval from the existing intervals.
+
+    A continuous interval index has one specific property; none of the intervals
+    overlap. Hence, subtracting intervals from a continuous interval index has the
+    following behavior:
+
+    Subtracting an interval which does not overlap with the index
+        The interval is ignored.
+    Subtracting an interval which overlaps partially with an interval in the index
+        The index' interval is shortened.
+    Subtracting an interval which overlaps completely with an interval in the index
+        The index' interval is split in two.
+
+    Parameters
+    ----------
+    index : IntervalIndex
+        The continuous interval index.
+    other : Interval
+        The interval to subtract. Must have the same interval type.
+
+    Returns
+    -------
+    IntervalIndex
+        The new index after subtracting the interval.
+
+    """
 
     def generator():
-        for interval in self:
+        for interval in index:
             if not interval.overlaps(other):
                 yield interval
             else:
@@ -142,6 +192,32 @@ def with_interval_cache(get_data_function: Callable):
 
 
 def serialize_interval_index(intervals: pd.IntervalIndex):
+    """Serialize an interval index.
+
+    An interval index can be represented in two different ways:
+
+    range
+        If the intervals has a fixed frequency, the only necessary information is the
+        `start`, `end` and `freq` parameters. This is the most compact representation.
+    arrays
+        Otherwise, all intervals are stored in `left` and `right` arrays.
+
+    Parameters
+    ----------
+    intervals : IntervalIndex
+        The intervals to serialize.
+
+    Returns
+    -------
+    dict
+        The serialized interval index.
+
+    Raises
+    ------
+    ValueError
+        If the deserialization of the serialization is not identical to the input.
+
+    """
     dtype = str(intervals.dtype)
 
     if intervals.empty:
@@ -182,6 +258,32 @@ def serialize_interval_index(intervals: pd.IntervalIndex):
 
 
 def deserialize_interval_index(serialized: dict):
+    """Deserialize a serialized interval index.
+
+    An interval index can be represented in two different ways:
+
+    range
+        If the intervals has a fixed frequency, the only necessary information is the
+        `start`, `end` and `freq` parameters. This is the most compact representation.
+    arrays
+        Otherwise, all intervals are stored in `left` and `right` arrays.
+
+    Parameters
+    ----------
+    serialized : dict
+        The serialized interval index.
+
+    Returns
+    -------
+    IntervalIndex
+        The deserialized interval index.
+
+    Raises
+    ------
+    ValueError
+        If the deserialization fails.
+
+    """
     # Extract information from the interval index dtype
     match = re.match(r"interval\[(.+), (.+)\]", serialized["dtype"])
     dtype = match.group(1)
