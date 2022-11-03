@@ -1,18 +1,22 @@
+"""Wrappers around sklearn classes to handle dataframes."""
 from typing import Union
 
 import pandas as pd
 import sklearn.decomposition
 import sklearn.manifold
 import sklearn.preprocessing
-from sklearn.cluster import DBSCAN
 
 
 class PCA(sklearn.decomposition.PCA):
+    """Overrides methods to handle dataframes."""
+
     def fit_transform(self, X: pd.DataFrame, y=None):
         return pd.DataFrame(super().fit_transform(X), index=X.index)
 
 
 class TSNE(sklearn.manifold.TSNE):
+    """Overrides methods to handle dataframes."""
+
     def fit_transform(self, X: pd.DataFrame, y=None):
         return pd.DataFrame(super().fit_transform(X), index=X.index)
 

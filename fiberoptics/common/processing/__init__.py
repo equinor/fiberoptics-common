@@ -1,3 +1,4 @@
+"""Data processing functions including a variety of filters."""
 import pandas as pd
 
 
@@ -86,7 +87,7 @@ def moveout_correction(df: pd.DataFrame, channel: int, moveout: float) -> pd.Dat
 
 
 def median_depth_filter(df: pd.DataFrame, length: int) -> pd.DataFrame:
-    """Performs a median filter along the depth axis
+    """Performs a median filter along the depth axis.
 
     Parameters
     ----------
@@ -119,12 +120,10 @@ def resample_raw_data(df: pd.DataFrame, dec: int) -> pd.DataFrame:
     -------
     DataFrame
         Resampled dataframe
+
     """
     from scipy import signal
 
-    nw = 10
+    downsampled = signal.resample_poly(df, up=1, down=dec, axis=0, window=10)
 
-    downsampled = signal.resample_poly(df, 1, dec, 0, nw)
-    new_index = df.index[::dec]
-
-    return pd.DataFrame(downsampled, index=new_index, columns=df.columns)
+    return pd.DataFrame(downsampled, index=df.index[::dec], columns=df.columns)

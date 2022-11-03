@@ -1,6 +1,6 @@
 import pytest
 
-from fiberoptics.common._version import SemanticVersion
+from fiberoptics.common.misc._version import SemanticVersion
 
 
 @pytest.mark.parametrize(

@@ -1,0 +1,43 @@
+name: Publish Sphinx documentation
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+    - 'main'
+
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one concurrent deployment
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  main:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-python@v4
+      with:
+        python-version: '3.8'
+    - name: pip install
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install .[all,docs]
+    - name: sphinx make
+      run: |
+        (cd docs; make html)
+    - uses: actions/configure-pages@v2
+    - uses: actions/upload-pages-artifact@v1
+      with:
+        path: './docs/_build/html'
+    - uses: actions/deploy-pages@v1
+      id: deployment

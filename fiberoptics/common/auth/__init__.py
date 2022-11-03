@@ -1,15 +1,9 @@
+"""Utility functions for authentication and credential caching."""
 import os
-
-from azure.identity import (
-    AuthenticationRecord,
-    ClientSecretCredential,
-    DeviceCodeCredential,
-    TokenCachePersistenceOptions,
-)
 
 
 def get_default_credential(name, scopes, **kwargs):
-    """Retrieves default credentials.
+    """Retrieves default credential (using cache if available).
 
     Parameters
     ----------
@@ -25,6 +19,13 @@ def get_default_credential(name, scopes, **kwargs):
         the `DeviceCodeCredential` is used.
 
     """
+    from azure.identity import (
+        AuthenticationRecord,
+        ClientSecretCredential,
+        DeviceCodeCredential,
+        TokenCachePersistenceOptions,
+    )
+
     if kwargs.get("client_secret") is not None:
         credential = ClientSecretCredential(**kwargs)
     else:
