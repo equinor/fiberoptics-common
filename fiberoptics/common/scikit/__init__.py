@@ -7,6 +7,25 @@ import sklearn.manifold
 import sklearn.preprocessing
 
 
+def _generic_dataclass(cls):
+    """Decorator for classes that allow any input arguments."""
+
+    def __init__(self, *args, **kwargs):
+        self.args = args
+        self.kwargs = kwargs
+
+    def __repr__(self):
+        parse = lambda v: f"'{v}'" if isinstance(v, str) else str(v)  # noqa: E731
+        args = [parse(v) for v in self.args]
+        kwargs = [f"{k}={parse(v)}" for k, v in self.kwargs.items()]
+        return f"{self.__class__.__name__}({', '.join([*args, *kwargs])})"
+
+    cls.__init__ = __init__
+    cls.__repr__ = __repr__
+
+    return cls
+
+
 class PCA(sklearn.decomposition.PCA):
     """Overrides methods to handle dataframes."""
 
@@ -183,45 +202,40 @@ class Standard2dScaler(Standard1dScaler):
         return super().inverse_transform(df.stack(dropna=False)).unstack()
 
 
+@_generic_dataclass
 class TimeseriesStandardScaler:
-    """Applies standard scaling over a rolling window."""
+    """Applies standard scaling over a rolling window.
 
-    def __init__(self, window: pd.Timedelta):
-        self.window = window
+    See https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.rolling.html
+    for supported input arguements.
+    """
 
-    def fit(self, df: pd.DataFrame):
-        self.rolling_mean = df.mean(axis=1).rolling(self.window).mean()
-        self.rolling_std = df.mean(axis=1).rolling(self.window).std().bfill()
-        return self
-
-    def transform(self, df: pd.DataFrame):
-        return df.sub(self.rolling_mean, axis=0).div(self.rolling_std, axis=0)
+    def _transform(self, df: pd.DataFrame):
+        mean = df.rolling(*self.args, **self.kwargs).mean()
+        std = df.rolling(*self.args, **self.kwargs).std().bfill()
+        return df.sub(mean, axis=0).div(std, axis=0)
 
     def fit_transform(self, df: pd.DataFrame):
-        return self.fit(df).transform(df)
+        if isinstance(df.index, pd.IntervalIndex):
+            return self._transform(df.set_index(df.index.mid)).set_index(df.index)
+        return self._transform(df)
 
-    def inverse_transform(self, df: pd.DataFrame):
-        return df.mul(self.rolling_std, axis=0).add(self.rolling_mean, axis=0)
 
-
+@_generic_dataclass
 class TimeseriesRobustScaler:
-    """Applies robust scaling over a rolling window."""
+    """Applies robust scaling over a rolling window.
 
-    def __init__(self, window: pd.Timedelta):
-        self.window = window
+    See https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.rolling.html
+    for supported input arguements.
+    """
 
-    def fit(self, df: pd.DataFrame):
-        q25 = df.rolling(self.window, center=True).quantile(0.25)
-        q50 = df.rolling(self.window, center=True).quantile(0.50)
-        q75 = df.rolling(self.window, center=True).quantile(0.75)
-        self.median, self.iqr = q50, q75 - q25
-        return self
-
-    def transform(self, df: pd.DataFrame):
-        return df.sub(self.median, axis=0).div(self.iqr, axis=0)
+    def _transform(self, df: pd.DataFrame):
+        q25 = df.rolling(*self.args, **self.kwargs).quantile(0.25)
+        q50 = df.rolling(*self.args, **self.kwargs).quantile(0.50)
+        q75 = df.rolling(*self.args, **self.kwargs).quantile(0.75)
+        return df.sub(q50, axis=0).div(q75 - q25, axis=0)
 
     def fit_transform(self, df: pd.DataFrame):
-        return self.fit(df).transform(df)
-
-    def inverse_transform(self, df: pd.DataFrame):
-        return df.mul(self.iqr, axis=0).add(self.median, axis=0)
+        if isinstance(df.index, pd.IntervalIndex):
+            return self._transform(df.set_index(df.index.mid)).set_index(df.index)
+        return self._transform(df)
