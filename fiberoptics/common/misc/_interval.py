@@ -61,12 +61,15 @@ def combine_continuous_intervals(intervals: pd.IntervalIndex, threshold=0):
         The length of the returned index is smaller or equal to the input index.
 
     """
-
-    def combine(item: pd.IntervalIndex):
-        return pd.Interval(min(item.left), max(item.right), closed=item.closed)
-
+    # Convert the IntervalIndex to a list of continuous IntervalIndex objects
     result = find_continuous_intervals(intervals, threshold)
-    return pd.IntervalIndex(list(map(combine, result)))
+    # Convert each IntervalIndex object to a tuple with its end points and back into
+    # an IntervalIndex with correct type
+    return pd.IntervalIndex.from_tuples(
+        [(min(x.left), max(x.right)) for x in result],
+        closed=intervals.closed,
+        dtype=intervals.dtype,
+    )
 
 
 def add_interval(index: pd.IntervalIndex, other: pd.Interval):
