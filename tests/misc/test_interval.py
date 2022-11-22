@@ -146,6 +146,44 @@ def test_find_continuous_intervals(args, expected):
             pd.IntervalIndex.from_tuples([(1, 6)]),
             id="nonzero_threshold",
         ),
+        pytest.param(
+            (
+                pd.IntervalIndex.from_arrays(
+                    pd.DatetimeIndex([], tz="UTC"),
+                    pd.DatetimeIndex([], tz="UTC"),
+                ),
+            ),
+            pd.IntervalIndex([], dtype=pd.IntervalDtype("datetime64[ns, UTC]")),
+            id="empty_datetime_intervals",
+        ),
+        pytest.param(
+            (
+                pd.IntervalIndex.from_arrays(
+                    pd.DatetimeIndex([1], tz="UTC"),
+                    pd.DatetimeIndex([2], tz="UTC"),
+                ),
+            ),
+            pd.IntervalIndex.from_arrays(
+                pd.DatetimeIndex([1], tz="UTC"),
+                pd.DatetimeIndex([2], tz="UTC"),
+            ),
+            id="single_datetime_intervals",
+        ),
+        pytest.param(
+            (
+                pd.IntervalIndex.from_arrays(
+                    pd.DatetimeIndex([1, 2, 5], tz="Europe/Oslo"),
+                    pd.DatetimeIndex([2, 3, 6], tz="Europe/Oslo"),
+                    closed="left",
+                ),
+            ),
+            pd.IntervalIndex.from_arrays(
+                pd.DatetimeIndex([1, 5], tz="Europe/Oslo"),
+                pd.DatetimeIndex([3, 6], tz="Europe/Oslo"),
+                closed="left",
+            ),
+            id="multiple_datetime_intervals",
+        ),
     ],
 )
 def test_combine_intervals(args, expected):
