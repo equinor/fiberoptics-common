@@ -133,7 +133,8 @@ def get_default_credential(name: str = None, scopes: List[str] = [], **kwargs):
         # This is not a secret and can be found on https://www.whatismytenantid.com/
         kwargs["tenant_id"] = "3aa4a235-b6e2-48d5-9195-7fcf05b459b0"
 
-    if "client_secret" in kwargs:
+    # Should handle kwargs containing `client_secret=None`
+    if kwargs.get("client_secret") is not None:
         credential = ClientSecretCredential(**kwargs)
     else:
         cache = CredentialCache(name) if name else None
