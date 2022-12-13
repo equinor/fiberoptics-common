@@ -12,6 +12,7 @@ from fiberoptics.common.misc.Parser import (
     parse_str,
     parse_time,
     parse_uuid,
+    to_camel_case,
     to_snake_case,
 )
 
@@ -198,3 +199,15 @@ def test_is_valid_uuid(value, expected):
 )
 def test_to_snake_case(value, expected):
     assert to_snake_case(value) == expected
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        ("fiber_optical_path_id", "fiberOpticalPathId"),
+        ("start_time", "startTime"),
+        ("", ""),
+    ],
+)
+def test_to_camel_case(value, expected):
+    assert to_camel_case(value) == expected

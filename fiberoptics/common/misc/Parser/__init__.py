@@ -280,4 +280,4 @@ def to_camel_case(snake_case: str):
 
     s = "".join([x.title() for x in snake_case.split("_")])
 
-    return s[0].lower() if len(s) == 1 else s[0].lower() + s[1:]
+    return s[:1].lower() if len(s) <= 1 else s[0].lower() + s[1:]
