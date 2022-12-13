@@ -261,6 +261,7 @@ def to_snake_case(camelCase: str):
     """
     return "_".join(re.findall("[A-Z]?[a-z]+", camelCase)).lower()
 
+
 def to_camel_case(snake_case: str):
     """Convert snake case fotonepy naming convention to camelCase
 
@@ -270,13 +271,13 @@ def to_camel_case(snake_case: str):
     ------------
     snake_case : str
         A string written in snake case, e.g. user_classifications
-    
+
     Returns
     -----------
     str
         The 'snake_case' string converted to camelCase
     """
-    
-    s = ''.join([x.title() for x in snake_case.split('_')])
+
+    s = "".join([x.title() for x in snake_case.split("_")])
 
     return s[0].lower() if len(s) == 1 else s[0].lower() + s[1:]
