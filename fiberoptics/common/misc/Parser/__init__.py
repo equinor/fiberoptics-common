@@ -201,6 +201,26 @@ def parse_time(value: typing.Union[str, int, pd.Timestamp]):
     return time
 
 
+def parse_list(value: typing.Any):
+    """Parses input value to be of type list
+
+    Example {} -> [{}]
+            [{}] -> [{}]
+
+    Parameters
+    --------
+    value : Any
+        the input value
+
+    Returns
+    -------
+    list
+        the value wrapped within a list
+    """
+
+    return [value] if type(value) is not list else value
+
+
 def parse_uuid(value: typing.Any) -> str:
     """Parses strings expected to be UUIDs.
 

@@ -8,6 +8,7 @@ from fiberoptics.common.misc.Parser import (
     auto_parse,
     is_valid_uuid,
     parse_bool,
+    parse_list,
     parse_optional,
     parse_str,
     parse_time,
@@ -162,6 +163,18 @@ def test_parse_optional(value, expected):
 )
 def test_parse_time(value, expected):
     assert parse_time(value) == expected
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        ({"value": 0}, [{"value": 0}]),
+        ([{"value": 0}], [{"value": 0}]),
+        ([dict(), dict()], [dict(), dict()]),
+    ],
+)
+def test_parse_list(value, expected):
+    assert parse_list(value) == expected
 
 
 @pytest.mark.parametrize("value", ["a9cbdf2c-78a4-4e12-a3be-80082c8b8138"])
