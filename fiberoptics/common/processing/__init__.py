@@ -106,6 +106,44 @@ def median_depth_filter(df: pd.DataFrame, length: int) -> pd.DataFrame:
     return df.rolling(length, center=True, min_periods=1, axis=1).median()
 
 
+def depth_aggregation(df: pd.DataFrame,
+                      aggregation_window: int = 0,
+                      aggregation_function: str = "median",
+                      level: int = 1) -> pd.DataFrame:
+    """Groups input dataframe by columns (depth) and then
+    performs aggregation for each of the created groups.
+
+    Parameters
+    ----------
+    df : DataFrame
+        The input data with time as rows and depth as columns.
+    aggregation_window : int
+        Defines the size of the columns after grouping. For example, for 10
+        we will receive columns of size 10, e.g. 0, 10, 20, ... , 4980, 4990, 5000.
+    aggregation_function : str
+        The name of the function that will be used to aggregate data
+        in each of the grouped columns.
+    level: int
+        The number of level to perform aggregation on, in case if the input dataframe
+        has a multilevel columns (like in the app framework ingres dataframes).
+        1 by default, but will not be used and can be omitted if the input dataframe
+        doesn't have multilevel columns.
+
+    Returns
+    -------
+    DataFrame
+        Dataframe with aggregated columns
+
+    """
+    if aggregation_window > 0:
+        columns = df.columns.levels[level] if df.columns.nlevels > 1 else df.columns
+        groups = df.groupby(
+            (columns / aggregation_window).astype("int") * aggregation_window, axis=1)
+        df: pd.DataFrame = getattr(groups, aggregation_function)()
+
+    return df
+
+
 def resample_raw_data(df: pd.DataFrame, dec: int) -> pd.DataFrame:
     """Performs resampling in time using polyphase filtering.
 
