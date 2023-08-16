@@ -144,6 +144,40 @@ def depth_aggregation(df: pd.DataFrame,
     return df
 
 
+def split_around_gaps(df: pd.DataFrame, min_gap_length: str) -> list:
+    """Split input DataFrame into multiple DataFrames around the gaps in the index
+
+    Parameters
+    ----------
+    df : DataFrame
+        The input data with time as rows and depth as columns.
+    min_gap_length: str
+        The timedelta of the minimum possible gap. Specifies what is actually
+        considered as an enough duration of gap to split the input dataframe around it.
+        F.e. with "1m" value every gap with the duration more than 1 minute
+        will be used as a split point.
+
+    Returns
+    -------
+    list
+        List of dataframes
+
+    """
+    dataframes_list = []
+    start_idx, prev_idx = df.index[0], df.index[0]
+    for index in df.index:
+        if (index.left - prev_idx.left) > pd.Timedelta(min_gap_length):
+            dataframes_list.append(
+                df.loc[pd.Timestamp(start_idx.left): pd.Timestamp(prev_idx.left)])
+            start_idx = index
+        prev_idx = index
+
+    # Add the last DataFrame (after the last gap) to the list
+    dataframes_list.append(df.loc[pd.Timestamp(start_idx.left):])
+
+    return dataframes_list
+
+
 def resample_raw_data(df: pd.DataFrame, dec: int) -> pd.DataFrame:
     """Performs resampling in time using polyphase filtering.
 
