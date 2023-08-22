@@ -1,4 +1,8 @@
 """Data processing functions including a variety of filters."""
+import math
+from datetime import datetime, timedelta
+
+import numpy as np
 import pandas as pd
 
 
@@ -106,12 +110,16 @@ def median_depth_filter(df: pd.DataFrame, length: int) -> pd.DataFrame:
     return df.rolling(length, center=True, min_periods=1, axis=1).median()
 
 
-def depth_aggregation(df: pd.DataFrame,
-                      aggregation_window: int = 0,
-                      aggregation_function: str = "median",
-                      level: int = 1) -> pd.DataFrame:
+def depth_aggregation(
+    df: pd.DataFrame, aggregation_window: int = 0, aggregation_function: str = "median"
+) -> pd.DataFrame:
     """Groups input dataframe by columns (depth) and then
     performs aggregation for each of the created groups.
+    If input dataframe contains multiindex columns, then
+    separates the dataframe over top-level index (0),
+    performs all the same actions on each of the sub-frames,
+    and merges the result into one dataframe
+    with the same structure as the inputted one.
 
     Parameters
     ----------
@@ -123,11 +131,6 @@ def depth_aggregation(df: pd.DataFrame,
     aggregation_function : str
         The name of the function that will be used to aggregate data
         in each of the grouped columns.
-    level: int
-        The number of level to perform aggregation on, in case if the input dataframe
-        has a multilevel columns (like in the app framework ingres dataframes).
-        1 by default, but will not be used and can be omitted if the input dataframe
-        doesn't have multilevel columns.
 
     Returns
     -------
@@ -135,13 +138,32 @@ def depth_aggregation(df: pd.DataFrame,
         Dataframe with aggregated columns
 
     """
-    if aggregation_window > 0:
-        columns = df.columns.levels[level] if df.columns.nlevels > 1 else df.columns
-        groups = df.groupby(
-            (columns / aggregation_window).astype("int") * aggregation_window, axis=1)
-        df: pd.DataFrame = getattr(groups, aggregation_function)()
+    if aggregation_window < 0:
+        raise ValueError("Aggregation window cannot be less than zero")
 
-    return df
+    if aggregation_window == 0:
+        return df
+
+    # Split the groups into a list of DataFrames
+    grouped = df.groupby(level=0, axis=1)
+    grouped_dfs = [grouped.get_group(group_name) for group_name in grouped.groups]
+
+    aggregated_dfs = []
+    for grouped_df in grouped_dfs:
+        columns = (
+            grouped_df.columns.levels[1]
+            if grouped_df.columns.nlevels > 1
+            else grouped_df.columns
+        )
+        groups = grouped_df.groupby(
+            (columns / aggregation_window).astype("int") * aggregation_window, axis=1
+        )
+        grouped_df: pd.DataFrame = getattr(groups, aggregation_function)()
+        aggregated_dfs.append(grouped_df)
+
+    merged_df = pd.concat(aggregated_dfs, axis=1, keys=df.columns.levels[0])
+
+    return merged_df
 
 
 def split_around_gaps(df: pd.DataFrame, min_gap_length: str) -> list:
@@ -168,12 +190,13 @@ def split_around_gaps(df: pd.DataFrame, min_gap_length: str) -> list:
     for index in df.index:
         if (index.left - prev_idx.left) > pd.Timedelta(min_gap_length):
             dataframes_list.append(
-                df.loc[pd.Timestamp(start_idx.left): pd.Timestamp(prev_idx.left)])
+                df.loc[pd.Timestamp(start_idx.left) : pd.Timestamp(prev_idx.left)]
+            )
             start_idx = index
         prev_idx = index
 
     # Add the last DataFrame (after the last gap) to the list
-    dataframes_list.append(df.loc[pd.Timestamp(start_idx.left):])
+    dataframes_list.append(df.loc[pd.Timestamp(start_idx.left) :])
 
     return dataframes_list
 
