@@ -129,7 +129,7 @@ def parse_bool(value: bool):
         If the input is not explicitly of boolean type.
 
     """
-    if type(value) != bool:
+    if type(value) is not bool:
         raise ValueError("Boolean arguments must be either `True` or `False`")
     return value
 
