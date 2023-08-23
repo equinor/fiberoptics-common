@@ -144,9 +144,20 @@ def depth_aggregation(
     if aggregation_window == 0:
         return df
 
+    # if df.columns.nlevels == 1:
+    #     groups = df.groupby(
+    #         (df.columns / aggregation_window).astype("int") * aggregation_window, axis=1
+    #     )
+    #     df: pd.DataFrame = getattr(groups, aggregation_function)()
+    #     return df
+
     # Split the groups into a list of DataFrames
     grouped = df.groupby(level=0, axis=1)
-    grouped_dfs = [grouped.get_group(group_name) for group_name in grouped.groups]
+    grouped_dfs = (
+        [grouped.get_group(group_name) for group_name in grouped.groups]
+        if df.columns.nlevels > 1
+        else [df]
+    )
 
     aggregated_dfs = []
     for grouped_df in grouped_dfs:
@@ -161,7 +172,11 @@ def depth_aggregation(
         grouped_df: pd.DataFrame = getattr(groups, aggregation_function)()
         aggregated_dfs.append(grouped_df)
 
-    merged_df = pd.concat(aggregated_dfs, axis=1, keys=df.columns.levels[0])
+    merged_df = (
+        pd.concat(aggregated_dfs, axis=1, keys=df.columns.levels[0])
+        if len(aggregated_dfs) > 1
+        else aggregated_dfs[0]
+    )
 
     return merged_df
 
