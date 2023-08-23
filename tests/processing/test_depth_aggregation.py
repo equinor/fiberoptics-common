@@ -66,3 +66,43 @@ def test_depth_aggregation(
 
     # Assert
     assert expected == len(aggregated_df.columns)
+
+
+@pytest.mark.parametrize(
+    "start,end,aggregation_window",
+    [
+        (0, 1000, 10),
+        (10, 100, 5),
+        (500, 5000, 2),
+    ],
+)
+def test_depth_aggregation_no_multiindex(start: int, end: int, aggregation_window: int):
+    # Arrange
+    # Generate example data
+    num_intervals = 1000
+    interval_length = timedelta(seconds=1)
+    loci_range = range(start, end + 1)  # From start to end, inclusive
+
+    # Create the index with IntervalIndex
+    start_time = datetime(2023, 8, 21, 0, 0, 0)
+    end_time = start_time + interval_length * num_intervals
+    index = pd.IntervalIndex.from_tuples(
+        [
+            (t, t + interval_length)
+            for t in pd.date_range(
+                start_time, end_time - interval_length, freq=interval_length
+            )
+        ],
+        closed="left",
+    )
+
+    # Create the DataFrame with random data and "loci" columns
+    data = np.random.rand(len(index), len(loci_range))
+    df = pd.DataFrame(data, index=index, columns=loci_range)
+
+    # Act
+    aggregated_df = depth_aggregation(df, aggregation_window=aggregation_window)
+    expected = math.ceil(len(df.columns) / aggregation_window)
+
+    # Assert
+    assert expected == len(aggregated_df.columns)
