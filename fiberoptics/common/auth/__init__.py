@@ -7,6 +7,7 @@ from azure.identity import (
     AuthenticationRecord,
     ClientSecretCredential,
     DeviceCodeCredential,
+    InteractiveBrowserCredential,
     TokenCachePersistenceOptions,
 )
 
@@ -30,7 +31,12 @@ class CredentialCache:
 
     """
 
+    use_browser_credentials: bool
+
     def __init__(self, name: str):
+        self.use_browser_credentials = (
+            os.getenv("USE_BROWSER_CREDENTIALS", "false").lower() == "true"
+        )
         allow_unencrypted_storage = (
             os.getenv("ALLOW_UNENCRYPTED_STORAGE", "false").lower() == "true"
         )
@@ -47,6 +53,12 @@ class CredentialCache:
             Path.home() / ".IdentityService" / self.persistence_options.name
         )
 
+    def get_credential_type(self):
+        if self.use_browser_credentials:
+            return InteractiveBrowserCredential
+        else:
+            return DeviceCodeCredential
+
     def get_cached_credential(self):
         """Retrieves a cached credential object if it exists."""
         authentication_record = self.read_authentication_record()
@@ -54,7 +66,7 @@ class CredentialCache:
         if not authentication_record or not self.is_cache_available():
             return None
 
-        return DeviceCodeCredential(
+        return self.get_credential_type()(
             authentication_record=authentication_record,
             cache_persistence_options=self.persistence_options,
         )
@@ -67,7 +79,9 @@ class CredentialCache:
     def is_cache_available(self):
         """Checks whether caching is currently supported."""
         try:
-            DeviceCodeCredential(cache_persistence_options=self.persistence_options)
+            self.get_credential_type()(
+                cache_persistence_options=self.persistence_options
+            )
             return True
         except ValueError as e:
             return not str(e).startswith("Cache encryption is impossible")
@@ -142,22 +156,24 @@ def get_default_credential(name: str = None, scopes: List[str] = [], **kwargs):
         if cache and cache.is_cache_available():
             authentication_record = cache.read_authentication_record()
 
+            CredentialType = cache.get_credential_type()
+
             if authentication_record:
                 # Retrieve cached credentials
-                credential = DeviceCodeCredential(
+                credential = CredentialType(
                     authentication_record=authentication_record,
                     cache_persistence_options=cache.persistence_options,
                 )
             else:
                 # Instantiate credentials with cache options
-                credential = DeviceCodeCredential(
+                credential = CredentialType(
                     **kwargs,
                     cache_persistence_options=cache.persistence_options,
                 )
                 authentication_record = credential.authenticate(scopes=scopes)
                 cache.write_authentication_record(authentication_record)
         else:
-            credential = DeviceCodeCredential(**kwargs)
+            credential = CredentialType(**kwargs)
             # Prompt the user for a device code immediately
             credential.authenticate(scopes=scopes)
 
