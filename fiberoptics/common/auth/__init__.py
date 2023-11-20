@@ -1,4 +1,5 @@
 """Utility functions for authentication and credential caching."""
+import logging
 import os
 from pathlib import Path
 from typing import List
@@ -10,6 +11,9 @@ from azure.identity import (
     InteractiveBrowserCredential,
     TokenCachePersistenceOptions,
 )
+
+logger = logging.getLogger("fiberoptics.common")
+
 
 def get_preferred_credential_type():
     use_browser_credentials = (
@@ -157,6 +161,10 @@ def get_default_credential(name: str = None, scopes: List[str] = [], **kwargs):
             authentication_record = cache.read_authentication_record()
 
             if authentication_record:
+                logger.info(
+                    f"Reusing cached credentials from \
+{cache.authentication_record_filepath}..."
+                )
                 # Retrieve cached credentials
                 credential = CredentialType(
                     authentication_record=authentication_record,
