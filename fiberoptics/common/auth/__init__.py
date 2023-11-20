@@ -11,6 +11,16 @@ from azure.identity import (
     TokenCachePersistenceOptions,
 )
 
+def get_preferred_credential_type():
+    use_browser_credentials = (
+        os.getenv("USE_BROWSER_CREDENTIALS", "false").lower() == "true"
+    )
+
+    if use_browser_credentials:
+        return InteractiveBrowserCredential
+    else:
+        return DeviceCodeCredential
+
 
 class CredentialCache:
     """Convenience class to facility credential caching.
@@ -31,12 +41,7 @@ class CredentialCache:
 
     """
 
-    use_browser_credentials: bool
-
     def __init__(self, name: str):
-        self.use_browser_credentials = (
-            os.getenv("USE_BROWSER_CREDENTIALS", "false").lower() == "true"
-        )
         allow_unencrypted_storage = (
             os.getenv("ALLOW_UNENCRYPTED_STORAGE", "false").lower() == "true"
         )
@@ -53,12 +58,6 @@ class CredentialCache:
             Path.home() / ".IdentityService" / self.persistence_options.name
         )
 
-    def get_credential_type(self):
-        if self.use_browser_credentials:
-            return InteractiveBrowserCredential
-        else:
-            return DeviceCodeCredential
-
     def get_cached_credential(self):
         """Retrieves a cached credential object if it exists."""
         authentication_record = self.read_authentication_record()
@@ -66,7 +65,7 @@ class CredentialCache:
         if not authentication_record or not self.is_cache_available():
             return None
 
-        return self.get_credential_type()(
+        return get_preferred_credential_type()(
             authentication_record=authentication_record,
             cache_persistence_options=self.persistence_options,
         )
@@ -79,7 +78,7 @@ class CredentialCache:
     def is_cache_available(self):
         """Checks whether caching is currently supported."""
         try:
-            self.get_credential_type()(
+            get_preferred_credential_type()(
                 cache_persistence_options=self.persistence_options
             )
             return True
@@ -152,11 +151,10 @@ def get_default_credential(name: str = None, scopes: List[str] = [], **kwargs):
         credential = ClientSecretCredential(**kwargs)
     else:
         cache = CredentialCache(name) if name else None
+        CredentialType = get_preferred_credential_type()
 
         if cache and cache.is_cache_available():
             authentication_record = cache.read_authentication_record()
-
-            CredentialType = cache.get_credential_type()
 
             if authentication_record:
                 # Retrieve cached credentials
