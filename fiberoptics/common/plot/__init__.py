@@ -2,9 +2,8 @@
 import warnings
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
-
-from fiberoptics.common.plot import _ticker
 
 
 def rawdataplot(df: pd.DataFrame, **kwargs):
@@ -24,9 +23,6 @@ def rawdataplot(df: pd.DataFrame, **kwargs):
     colorbar : bool
         Whether or not to include a colorbar.
 
-    facecolor : str, default "white"
-        The figure's background color.
-
     cmap : str, default "seismic"
         The color map to use.
         See https://matplotlib.org/stable/tutorials/colors/colormaps.html for a list of
@@ -45,6 +41,9 @@ def rawdataplot(df: pd.DataFrame, **kwargs):
         Dates are resampled to the minimum frequency present in the index.
         A linear time index is necessary to display correct labels.
 
+    skip_single_gaps : bool, default True
+        If there is only missing one sample at a time, it will be interpolated.
+        Uses .ffill(limit=2) instead .first().
     """
 
     if not isinstance(df, pd.DataFrame):
@@ -61,34 +60,37 @@ def rawdataplot(df: pd.DataFrame, **kwargs):
 
     figsize = kwargs.pop("figsize", (12, 6))
     colorbar = kwargs.pop("colorbar", False)
-    facecolor = kwargs.pop("facecolor", "white")
     resample = kwargs.pop("resample", True)
+    skip_single_gaps = kwargs.pop("skip_single_gaps", True)
 
     if isinstance(df.index, pd.DatetimeIndex) and resample:
         min_index_gap = min(df.index[1:] - df.index[:-1])
-        df = df.resample(min_index_gap, origin="start").first()
+        df = df.resample(min_index_gap, origin="start")
+        if skip_single_gaps:
+            df = df.ffill(limit=2)
+        else:
+            df = df.first()
+    else:
+        df = df.set_index(np.arange(len(df.index)))
 
     kwargs["cmap"] = kwargs.get("cmap", "seismic")
     kwargs["aspect"] = kwargs.get("aspect", "auto")
     kwargs["interpolation"] = kwargs.get("interpolation", "none")
-    vmax = df.abs().max().max()
-    kwargs["vmax"] = kwargs.get("vmax", vmax)
-    kwargs["vmin"] = kwargs.get("vmin", -vmax)
+    kwargs["vmax"] = kwargs.get("vmax", np.nanquantile(df, 0.99))
+    kwargs["vmin"] = kwargs.get("vmin", np.nanquantile(df, 0.01))
 
     if "ax" not in kwargs:
-        plt.figure(figsize=figsize, facecolor=facecolor)
+        plt.figure(figsize=figsize)
 
     ax = kwargs.pop("ax", plt.gca())
-    iax = ax.imshow(df.T, **kwargs)
+    iax = ax.imshow(
+        df.values.T,
+        extent=[df.index[0], df.index[-1], df.columns[-1], df.columns[0]],
+        **kwargs
+    )
 
     if colorbar:
         plt.colorbar(iax, ax=ax)
-
-    if isinstance(df.index, pd.DatetimeIndex) and resample:
-        ax.xaxis.set_major_locator(_ticker.MyDateLocator(df.index))
-        ax.xaxis.set_major_formatter(_ticker.MyDateFormatter(df.index))
-    ax.yaxis.set_major_locator(_ticker.MyLociLocator())
-    ax.yaxis.set_major_formatter(_ticker.MyLociFormatter(df.columns))
 
 
 def scatterplot(df: pd.DataFrame, **kwargs):
