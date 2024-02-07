@@ -1,4 +1,5 @@
 """Powerful plotting functions for ease-of-use."""
+
 import warnings
 
 import matplotlib.pyplot as plt
@@ -83,11 +84,7 @@ def rawdataplot(df: pd.DataFrame, **kwargs):
         plt.figure(figsize=figsize)
 
     ax = kwargs.pop("ax", plt.gca())
-    iax = ax.imshow(
-        df.values.T,
-        extent=[df.index[0], df.index[-1], df.columns[-1], df.columns[0]],
-        **kwargs
-    )
+    iax = ax.imshow(df.values.T, extent=[df.index[0], df.index[-1], df.columns[-1], df.columns[0]], **kwargs)
 
     if colorbar:
         plt.colorbar(iax, ax=ax)
@@ -149,6 +146,4 @@ def scatterplot(df: pd.DataFrame, **kwargs):
             ax.legend(*ax.get_children()[0].legend_elements())
         elif legend is True:
             # Only warn if legend is explicitly set to True
-            warnings.warn(
-                "Pass a list of integers as 'c' to enable automatic legend generation"
-            )
+            warnings.warn("Pass a list of integers as 'c' to enable automatic legend generation")

@@ -1,4 +1,5 @@
 """Functions for parsing input arguments."""
+
 import functools
 import inspect
 import re

@@ -17,9 +17,7 @@ from fiberoptics.common.processing import depth_aggregation
         (500, 5000, 2, 5),
     ],
 )
-def test_depth_aggregation(
-    start: int, end: int, aggregation_window: int, top_level_length: int
-):
+def test_depth_aggregation(start: int, end: int, aggregation_window: int, top_level_length: int):
     # Arrange
     # Generate example data
     num_intervals = 10
@@ -30,20 +28,13 @@ def test_depth_aggregation(
     feature_ids = [f"feature{i}" for i in range(0, top_level_length)]
     loci = loci_range
 
-    columns = pd.MultiIndex.from_product(
-        [feature_ids, loci], names=["featureId", "loci"]
-    )
+    columns = pd.MultiIndex.from_product([feature_ids, loci], names=["featureId", "loci"])
 
     # Generate the index with IntervalIndex
     start_time = datetime(2023, 8, 21, 0, 0, 0)
     end_time = start_time + interval_length * num_intervals
     index = pd.IntervalIndex.from_tuples(
-        [
-            (t, t + interval_length)
-            for t in pd.date_range(
-                start_time, end_time - interval_length, freq=interval_length
-            )
-        ],
+        [(t, t + interval_length) for t in pd.date_range(start_time, end_time - interval_length, freq=interval_length)],
         closed="left",
     )
 
@@ -87,12 +78,7 @@ def test_depth_aggregation_no_multiindex(start: int, end: int, aggregation_windo
     start_time = datetime(2023, 8, 21, 0, 0, 0)
     end_time = start_time + interval_length * num_intervals
     index = pd.IntervalIndex.from_tuples(
-        [
-            (t, t + interval_length)
-            for t in pd.date_range(
-                start_time, end_time - interval_length, freq=interval_length
-            )
-        ],
+        [(t, t + interval_length) for t in pd.date_range(start_time, end_time - interval_length, freq=interval_length)],
         closed="left",
     )
 

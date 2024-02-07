@@ -388,9 +388,7 @@ def test_with_interval_cache(mocker: MockerFixture, args_list, expected):
         ),
         pytest.param(
             pd.IntervalIndex.from_breaks(pd.DatetimeIndex([], tz="Europe/Oslo")),
-            dict(
-                left=[], right=[], dtype="interval[datetime64[ns, Europe/Oslo], right]"
-            ),
+            dict(left=[], right=[], dtype="interval[datetime64[ns, Europe/Oslo], right]"),
             id="empty_datetime_timezone",
         ),
         pytest.param(
@@ -437,12 +435,8 @@ def test_with_interval_cache(mocker: MockerFixture, args_list, expected):
         ),
         pytest.param(
             pd.IntervalIndex.from_arrays(
-                pd.date_range(10e9, 20e9, freq=pd.Timedelta(1e9), tz="UTC").tz_convert(
-                    "Europe/Oslo"
-                ),
-                pd.date_range(11e9, 21e9, freq=pd.Timedelta(1e9), tz="UTC").tz_convert(
-                    "Europe/Oslo"
-                ),
+                pd.date_range(10e9, 20e9, freq=pd.Timedelta(1e9), tz="UTC").tz_convert("Europe/Oslo"),
+                pd.date_range(11e9, 21e9, freq=pd.Timedelta(1e9), tz="UTC").tz_convert("Europe/Oslo"),
             ),
             dict(
                 start=10e9,
@@ -479,12 +473,8 @@ def test_with_interval_cache(mocker: MockerFixture, args_list, expected):
         ),
         pytest.param(
             pd.IntervalIndex.from_arrays(
-                left=pd.DatetimeIndex([10e9, 12e9, 15e9, 20e9], tz="UTC").tz_convert(
-                    "Europe/Oslo"
-                ),
-                right=pd.DatetimeIndex([11e9, 13e9, 16e9, 21e9], tz="UTC").tz_convert(
-                    "Europe/Oslo"
-                ),
+                left=pd.DatetimeIndex([10e9, 12e9, 15e9, 20e9], tz="UTC").tz_convert("Europe/Oslo"),
+                right=pd.DatetimeIndex([11e9, 13e9, 16e9, 21e9], tz="UTC").tz_convert("Europe/Oslo"),
                 closed="left",
             ),
             dict(
@@ -520,9 +510,7 @@ def test_serialize_interval_index(input, expected):
             id="empty_datetime",
         ),
         pytest.param(
-            dict(
-                left=[], right=[], dtype="interval[datetime64[ns, Europe/Oslo], right]"
-            ),
+            dict(left=[], right=[], dtype="interval[datetime64[ns, Europe/Oslo], right]"),
             pd.IntervalIndex.from_breaks(pd.DatetimeIndex([], tz="Europe/Oslo")),
             id="empty_datetime_timezone",
         ),
@@ -576,12 +564,8 @@ def test_serialize_interval_index(input, expected):
                 dtype="interval[datetime64[ns, Europe/Oslo], right]",
             ),
             pd.IntervalIndex.from_arrays(
-                pd.date_range(10e9, 20e9, freq=pd.Timedelta(1e9), tz="UTC").tz_convert(
-                    "Europe/Oslo"
-                ),
-                pd.date_range(11e9, 21e9, freq=pd.Timedelta(1e9), tz="UTC").tz_convert(
-                    "Europe/Oslo"
-                ),
+                pd.date_range(10e9, 20e9, freq=pd.Timedelta(1e9), tz="UTC").tz_convert("Europe/Oslo"),
+                pd.date_range(11e9, 21e9, freq=pd.Timedelta(1e9), tz="UTC").tz_convert("Europe/Oslo"),
             ),
             id="continuous_datetime_timezone",
         ),
@@ -617,12 +601,8 @@ def test_serialize_interval_index(input, expected):
                 dtype="interval[datetime64[ns, Europe/Oslo], left]",
             ),
             pd.IntervalIndex.from_arrays(
-                left=pd.DatetimeIndex([10e9, 12e9, 15e9, 20e9], tz="UTC").tz_convert(
-                    "Europe/Oslo"
-                ),
-                right=pd.DatetimeIndex([11e9, 13e9, 16e9, 21e9], tz="UTC").tz_convert(
-                    "Europe/Oslo"
-                ),
+                left=pd.DatetimeIndex([10e9, 12e9, 15e9, 20e9], tz="UTC").tz_convert("Europe/Oslo"),
+                right=pd.DatetimeIndex([11e9, 13e9, 16e9, 21e9], tz="UTC").tz_convert("Europe/Oslo"),
                 closed="left",
             ),
             id="noncontinuous_datetime_timezone",

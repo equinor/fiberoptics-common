@@ -1,4 +1,5 @@
 """Utility functions for authentication and credential caching."""
+
 import logging
 import os
 from pathlib import Path
@@ -16,9 +17,7 @@ logger = logging.getLogger("fiberoptics.common")
 
 
 def get_preferred_credential_type():
-    use_browser_credentials = (
-        os.getenv("USE_BROWSER_CREDENTIALS", "false").lower() == "true"
-    )
+    use_browser_credentials = os.getenv("USE_BROWSER_CREDENTIALS", "false").lower() == "true"
 
     if use_browser_credentials:
         return InteractiveBrowserCredential
@@ -46,21 +45,15 @@ class CredentialCache:
     """
 
     def __init__(self, name: str):
-        allow_unencrypted_storage = (
-            os.getenv("ALLOW_UNENCRYPTED_STORAGE", "false").lower() == "true"
-        )
+        allow_unencrypted_storage = os.getenv("ALLOW_UNENCRYPTED_STORAGE", "false").lower() == "true"
         self.persistence_options = TokenCachePersistenceOptions(
             name=name,
             allow_unencrypted_storage=allow_unencrypted_storage,
         )
         # This is where the session information is stored
-        self.authentication_record_filepath = (
-            Path.home() / ".authentication-records" / self.persistence_options.name
-        )
+        self.authentication_record_filepath = Path.home() / ".authentication-records" / self.persistence_options.name
         # This is where the actual credentials are stored
-        self.identity_service_filepath = (
-            Path.home() / ".IdentityService" / self.persistence_options.name
-        )
+        self.identity_service_filepath = Path.home() / ".IdentityService" / self.persistence_options.name
 
     def get_cached_credential(self):
         """Retrieves a cached credential object if it exists."""
@@ -82,9 +75,7 @@ class CredentialCache:
     def is_cache_available(self):
         """Checks whether caching is currently supported."""
         try:
-            get_preferred_credential_type()(
-                cache_persistence_options=self.persistence_options
-            )
+            get_preferred_credential_type()(cache_persistence_options=self.persistence_options)
             return True
         except ValueError as e:
             return not str(e).startswith("Cache encryption is impossible")
@@ -124,9 +115,7 @@ def add_default_scopes(credential: DeviceCodeCredential, scopes: List[str]):
         The credential is modified in place.
 
     """
-    credential.get_token = lambda *args, **kwargs: type(credential).get_token(
-        credential, *(args or scopes), **kwargs
-    )
+    credential.get_token = lambda *args, **kwargs: type(credential).get_token(credential, *(args or scopes), **kwargs)
 
 
 def get_default_credential(name: str = None, scopes: List[str] = [], **kwargs):

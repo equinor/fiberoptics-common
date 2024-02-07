@@ -5,9 +5,7 @@ from typing import Callable, List, Union
 import pandas as pd
 
 
-def find_continuous_intervals(
-    intervals: pd.IntervalIndex, threshold=0
-) -> List[pd.IntervalIndex]:
+def find_continuous_intervals(intervals: pd.IntervalIndex, threshold=0) -> List[pd.IntervalIndex]:
     """Splits a list of intervals into multiple lists of continuous intervals.
 
     Parameters
@@ -158,12 +156,7 @@ def with_interval_cache(get_data_function: Callable):
     cached_data = dict()
 
     @functools.wraps(get_data_function)
-    def wrapped_function(
-        id_or_ids: Union[str, List[str]],
-        start_time: pd.Timestamp,
-        end_time: pd.Timestamp,
-        **kwargs
-    ):
+    def wrapped_function(id_or_ids: Union[str, List[str]], start_time: pd.Timestamp, end_time: pd.Timestamp, **kwargs):
         ids = [id_or_ids] if isinstance(id_or_ids, str) else id_or_ids
         start_time = pd.Timestamp(start_time)
         end_time = pd.Timestamp(end_time)
@@ -187,9 +180,7 @@ def with_interval_cache(get_data_function: Callable):
         if isinstance(id_or_ids, str):
             return cached_data[id_or_ids][start_time:end_time]
 
-        return pd.concat(
-            [cached_data[id][start_time:end_time] for id in ids], axis=1, keys=ids
-        )
+        return pd.concat([cached_data[id][start_time:end_time] for id in ids], axis=1, keys=ids)
 
     return wrapped_function
 

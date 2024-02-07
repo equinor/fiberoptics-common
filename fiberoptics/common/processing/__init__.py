@@ -1,4 +1,5 @@
 """Data processing functions including a variety of filters."""
+
 import math
 from datetime import datetime, timedelta
 
@@ -6,9 +7,7 @@ import numpy as np
 import pandas as pd
 
 
-def rolling_rms_window(
-    df: pd.DataFrame, window: pd.Timedelta, min_periods=None
-) -> pd.DataFrame:
+def rolling_rms_window(df: pd.DataFrame, window: pd.Timedelta, min_periods=None) -> pd.DataFrame:
     """Computes the RMS with a given window size.
 
     Parameters
@@ -31,9 +30,7 @@ def rolling_rms_window(
     return df.pow(2).rolling(window, min_periods, center=True).mean().pow(0.5)
 
 
-def low_cut_filter(
-    df: pd.DataFrame, numtaps: int, cutoff: int, fs: int = 10000
-) -> pd.DataFrame:
+def low_cut_filter(df: pd.DataFrame, numtaps: int, cutoff: int, fs: int = 10000) -> pd.DataFrame:
     """Performs a low-cut filter.
 
     Parameters
@@ -110,9 +107,7 @@ def median_depth_filter(df: pd.DataFrame, length: int) -> pd.DataFrame:
     return df.rolling(length, center=True, min_periods=1, axis=1).median()
 
 
-def depth_aggregation(
-    df: pd.DataFrame, aggregation_window: int = 0, aggregation_function: str = "median"
-) -> pd.DataFrame:
+def depth_aggregation(df: pd.DataFrame, aggregation_window: int = 0, aggregation_function: str = "median") -> pd.DataFrame:
     """Groups input dataframe by columns (depth) and then
     performs aggregation for each of the created groups.
     If input dataframe contains multiindex columns, then
@@ -153,30 +148,16 @@ def depth_aggregation(
 
     # Split the groups into a list of DataFrames
     grouped = df.groupby(level=0, axis=1)
-    grouped_dfs = (
-        [grouped.get_group(group_name) for group_name in grouped.groups]
-        if df.columns.nlevels > 1
-        else [df]
-    )
+    grouped_dfs = [grouped.get_group(group_name) for group_name in grouped.groups] if df.columns.nlevels > 1 else [df]
 
     aggregated_dfs = []
     for grouped_df in grouped_dfs:
-        columns = (
-            grouped_df.columns.levels[1]
-            if grouped_df.columns.nlevels > 1
-            else grouped_df.columns
-        )
-        groups = grouped_df.groupby(
-            (columns / aggregation_window).astype("int") * aggregation_window, axis=1
-        )
+        columns = grouped_df.columns.levels[1] if grouped_df.columns.nlevels > 1 else grouped_df.columns
+        groups = grouped_df.groupby((columns / aggregation_window).astype("int") * aggregation_window, axis=1)
         grouped_df: pd.DataFrame = getattr(groups, aggregation_function)()
         aggregated_dfs.append(grouped_df)
 
-    merged_df = (
-        pd.concat(aggregated_dfs, axis=1, keys=df.columns.levels[0])
-        if len(aggregated_dfs) > 1
-        else aggregated_dfs[0]
-    )
+    merged_df = pd.concat(aggregated_dfs, axis=1, keys=df.columns.levels[0]) if len(aggregated_dfs) > 1 else aggregated_dfs[0]
 
     return merged_df
 
@@ -204,9 +185,7 @@ def split_around_gaps(df: pd.DataFrame, min_gap_length: str) -> list:
     start_idx, prev_idx = df.index[0], df.index[0]
     for index in df.index:
         if (index.left - prev_idx.left) > pd.Timedelta(min_gap_length):
-            dataframes_list.append(
-                df.loc[pd.Timestamp(start_idx.left) : pd.Timestamp(prev_idx.left)]
-            )
+            dataframes_list.append(df.loc[pd.Timestamp(start_idx.left) : pd.Timestamp(prev_idx.left)])
             start_idx = index
         prev_idx = index
 
