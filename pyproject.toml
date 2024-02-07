@@ -9,3 +9,56 @@ ignore = ["E203", "E501", "E712"]
 
 [tool.ruff.format]
 docstring-code-format = true
+
+[tool.pytest.ini_options]
+testpaths = "tests"
+python_files = "test_*.py"
+pythonpath = "."
+
+[tool.coverage.report]
+omit = ["*/tests/*"]
+
+[tool.poetry]
+name = "fiberoptics-common"
+version = "1.9.1"
+description = ""
+authors = []
+repository = "https://github.com/equinor/fiberoptics-common"
+documentation = "https://github.com/equinor/fiberoptics-common/docs/"
+license = "Proprietary"
+readme = "README.md"
+packages = [{ include = "fiberoptics" }]
+
+[tool.poetry.urls]
+"Bug Tracker" = "https://github.com/equinor/fiberoptics-common/issues"
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.13"
+pandas = "*"
+azure-identity = "*"
+h5py = "*"
+matplotlib = "*"
+scipy = "*"
+scikit-learn = "*"
+
+[tool.poetry.group.dev]
+optional = true
+
+[tool.poetry.group.dev.dependencies]
+pytest = "*"
+pytest-mock = "*"
+pytest-cov = "*"
+ruff = "*"
+# bumpversion = "^0.6.0"
+
+[tool.poetry.group.docs]
+optional = true
+
+[tool.poetry.group.docs.dependencies]
+sphinx = "*"
+sphinx_design = "*"
+sphinx_rtd_theme = "*"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
