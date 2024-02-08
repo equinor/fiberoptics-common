@@ -49,7 +49,7 @@ pytest = "*"
 pytest-mock = "*"
 pytest-cov = "*"
 ruff = "*"
-# bumpversion = "^0.6.0"
+bump-my-version = "*"
 
 [tool.poetry.group.docs]
 optional = true
@@ -58,6 +58,17 @@ optional = true
 sphinx = "*"
 sphinx_design = "*"
 sphinx_rtd_theme = "*"
+
+[tool.bumpversion]
+current_version = "1.9.1"
+commit = true
+message = "Bump version: {current_version} → {new_version}"
+parse = "(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)(\\-(?P<release>[a-z]+))?"
+serialize = ["{major}.{minor}.{patch}-{release}", "{major}.{minor}.{patch}"]
+
+[tool.bumpversion.parts.release]
+values = ["prod"]
+optional_value = "prod"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
