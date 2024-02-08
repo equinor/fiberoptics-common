@@ -70,6 +70,12 @@ serialize = ["{major}.{minor}.{patch}-{release}", "{major}.{minor}.{patch}"]
 values = ["prod"]
 optional_value = "prod"
 
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+
+[[tool.bumpversion.files]]
+filename = "fiberoptics/common/__init__.py"
+
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
