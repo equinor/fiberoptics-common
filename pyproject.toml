@@ -20,7 +20,7 @@ omit = ["*/tests/*"]
 
 [tool.poetry]
 name = "fiberoptics-common"
-version = "1.9.1"
+version = "2.0.0"
 description = ""
 authors = []
 repository = "https://github.com/equinor/fiberoptics-common"
@@ -60,7 +60,7 @@ sphinx_design = "*"
 sphinx_rtd_theme = "*"
 
 [tool.bumpversion]
-current_version = "1.9.1"
+current_version = "2.0.0"
 commit = true
 message = "Bump version: {current_version} → {new_version}"
 parse = "(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)(\\-(?P<release>[a-z]+))?"
