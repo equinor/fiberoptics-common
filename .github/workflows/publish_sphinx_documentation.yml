@@ -1,9 +1,10 @@
 name: Publish Sphinx documentation
 
 on:
-  pull_request:
-    types: [review_requested, opened, reopened, synchronize]
-    branches: ["main"]
+  workflow_dispatch:
+  push:
+    branches:
+      - "main"
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
