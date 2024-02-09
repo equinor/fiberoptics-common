@@ -1,4 +1,5 @@
 """Functions for parsing input arguments."""
+
 import functools
 import inspect
 import re
@@ -129,7 +130,7 @@ def parse_bool(value: bool):
         If the input is not explicitly of boolean type.
 
     """
-    if type(value) is not bool:
+    if not isinstance(value, bool):
         raise ValueError("Boolean arguments must be either `True` or `False`")
     return value
 
@@ -218,7 +219,7 @@ def parse_list(value: typing.Any):
         the value wrapped within a list
     """
 
-    return [value] if type(value) is not list else value
+    return [value] if not isinstance(value, list) else value
 
 
 def parse_uuid(value: typing.Any) -> str:

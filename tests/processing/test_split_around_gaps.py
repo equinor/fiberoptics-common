@@ -15,18 +15,14 @@ def test_split_around_gaps():
 
     # Generate random gaps in the index
     # But make sure they will never overlap
-    gap_indices = [
-        np.random.randint(i * 1000, (i + 1) * 1000 - 100) for i in range(0, 5)
-    ]
+    gap_indices = [np.random.randint(i * 1000, (i + 1) * 1000 - 100) for i in range(0, 5)]
     gap_indices.sort()
 
     # Create the multiindex column
     feature_ids = ["feature1", "feature2"]
     loci = loci_range
 
-    columns = pd.MultiIndex.from_product(
-        [feature_ids, loci], names=["featureId", "loci"]
-    )
+    columns = pd.MultiIndex.from_product([feature_ids, loci], names=["featureId", "loci"])
 
     # Generate the index with IntervalIndex
     start_time = datetime(2023, 8, 21, 0, 0, 0)
@@ -36,9 +32,7 @@ def test_split_around_gaps():
         index.append((current_time, current_time + interval_length))
         current_time += interval_length
         if i in gap_indices:
-            current_time += timedelta(
-                minutes=np.random.randint(2, 5)
-            )  # Add a random gap
+            current_time += timedelta(minutes=np.random.randint(2, 5))  # Add a random gap
 
     index = pd.IntervalIndex.from_tuples(index, closed="left")
 
