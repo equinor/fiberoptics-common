@@ -106,16 +106,22 @@ To contribute to the docs, you must first install the documentation dependencies
 - [**sphinx_design**](https://sphinx-design.readthedocs.io/en/latest/) - Extension to add responsive web-components such as grids and cards.
 - [**sphinx_rtd_theme**](https://sphinx-rtd-theme.readthedocs.io/en/stable/index.html) - Extension to add the Read the Docs theme.
 
-These are listed under `docs` in `extras_require`, so the easiest approach is to simply
+- Install dependencies & dev-dependencies:
 
 ```
-pip install -e path/to/fiberoptics-common[all,docs]
+poetry install --with dev,docs
 ```
 
-The next step is to build the docs by running the following command
+- Navigate into `docs` folder:
 
 ```
-(cd docs; make html)
+cd docs
+```
+
+- The next step is to build the docs by running the following command:
+
+```
+poetry run make html
 ```
 
 _Note_: Replace `make html` with `make clean html` to rebuild everything from scratch.
