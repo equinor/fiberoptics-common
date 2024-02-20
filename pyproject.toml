@@ -74,6 +74,7 @@ commit = true
 message = "Bump version: {current_version} → {new_version}"
 parse = "(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)(\\-(?P<release>[a-z]+))?"
 serialize = ["{major}.{minor}.{patch}-{release}", "{major}.{minor}.{patch}"]
+regex = true
 
 [tool.bumpversion.parts.release]
 values = ["prod"]
@@ -81,6 +82,8 @@ optional_value = "prod"
 
 [[tool.bumpversion.files]]
 filename = "pyproject.toml"
+search = "^version = \"{current_version}\""
+replace = "version = \"{new_version}\""
 
 [[tool.bumpversion.files]]
 filename = "fiberoptics/common/__init__.py"
