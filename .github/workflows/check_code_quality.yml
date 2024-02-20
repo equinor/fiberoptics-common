@@ -41,7 +41,7 @@ jobs:
       # Install dependencies      #
       #---------------------------#
       - name: Install dependencies
-        run: poetry install --no-interaction --no-cache --with dev
+        run: poetry install -E "all" --no-interaction --no-cache --with dev
       #---------------------------#
       # Check format              #
       #---------------------------#
