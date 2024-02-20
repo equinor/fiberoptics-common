@@ -35,11 +35,20 @@ packages = [{ include = "fiberoptics" }]
 [tool.poetry.dependencies]
 python = ">=3.10,<3.13"
 pandas = "*"
-azure-identity = "*"
-h5py = "*"
-matplotlib = "*"
-scipy = "*"
-scikit-learn = "*"
+azure-identity = { version = "*", optional = true }
+h5py = { version = "*", optional = true }
+matplotlib = { version = "*", optional = true }
+scipy = { version = "*", optional = true }
+scikit-learn = { version = "*", optional = true }
+
+[tool.poetry.extras]
+auth = ["azure-identity"]
+io = ["h5py"]
+plot = ["matplotlib"]
+processing = ["scipy"]
+scikit = ["scikit-learn"]
+all = ["azure-identity", "h5py", "matplotlib", "scipy", "scikit-learn"]
+
 
 [tool.poetry.group.dev]
 optional = true

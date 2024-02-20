@@ -56,11 +56,27 @@ cd fiberoptics-common
   ```
   source .venv/bin/activate
   ```
+- Install minimal dependencies:
+
+```
+poetry install
+```
+
 - Install dependencies & dev-dependencies:
 
 ```
 poetry install --with dev
 ```
+
+Available dependency groups are `dev` and `docs`
+
+- Install extra optional dependencies:
+
+```
+poetry install -E "auth"
+```
+
+Available extra dependencies are `auth`, `io`, `plot`, `processing`, `scikit`. All extra dependencies can be installed using `poetry install -E "all"`.
 
 ### Adding functionality
 
