@@ -8,6 +8,7 @@ from fiberoptics.common.misc.Parser import (
     auto_parse,
     is_valid_uuid,
     parse_bool,
+    parse_int,
     parse_list,
     parse_optional,
     parse_str,
@@ -22,8 +23,7 @@ from fiberoptics.common.misc.Parser import (
     "Type,input,expected",
     [
         (str, 1, "1"),
-        (int, 1.1, 1),
-        (int, "1", 1),
+        (int, 1, 1),
         (bool, True, True),
         (typing.Optional[bool], True, True),
         (typing.Optional[bool], None, None),
@@ -41,7 +41,7 @@ from fiberoptics.common.misc.Parser import (
         (pd.Timestamp, "2020-01-01", pd.Timestamp("2020-01-01", tz="UTC")),
         (
             typing.TypedDict("TypedDict", {"a": int, "b": int}),
-            dict(a=1, b="2"),
+            dict(a=1, b=2),
             dict(a=1, b=2),
         ),
     ],
@@ -59,6 +59,8 @@ def test_auto_parse(Type, input, expected):
     [
         (int, None),
         (int, "a"),
+        (int, "1"),
+        (int, 1.1),
         (bool, None),
         (bool, 1),
         (str, None),
@@ -122,6 +124,17 @@ def test_parse_bool(value):
 def test_parse_bool__invalid_input__should_raise(value):
     with pytest.raises(ValueError):
         parse_bool(value)
+
+
+@pytest.mark.parametrize("value", [1, -1])
+def test_parse_int(value):
+    assert parse_int(value) == value
+
+
+@pytest.mark.parametrize("value", ["1", 1.1])
+def test_parse_int__invalid_input__should_raise(value):
+    with pytest.raises(ValueError):
+        parse_int(value)
 
 
 @pytest.mark.parametrize(
