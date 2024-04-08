@@ -70,6 +70,8 @@ def parse_type(value: typing.Any, Type: _T) -> _T:
         return value
     if Type == bool:
         return parse_bool(value)
+    if Type == int:
+        return parse_int(value)
     if Type == str:
         return parse_str(value)
     if Type == uuid.UUID:
@@ -132,6 +134,31 @@ def parse_bool(value: bool):
     """
     if not isinstance(value, bool):
         raise ValueError("Boolean arguments must be either `True` or `False`")
+    return value
+
+
+def parse_int(value: int):
+    """Parses integer input values.
+
+    Parameters
+    ----------
+    value : int
+        The input value.
+
+    Returns
+    -------
+    int
+        The input value.
+        Works as an identity function for valid input.
+
+    Raises
+    ------
+    ValueError
+        If the input is not explicitly of int type.
+
+    """
+    if not isinstance(value, int):
+        raise ValueError(f"'{value}' is not of type int")
     return value
 
 
