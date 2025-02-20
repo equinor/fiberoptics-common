@@ -33,7 +33,7 @@ packages = [{ include = "fiberoptics" }]
 "Bug Tracker" = "https://github.com/equinor/fiberoptics-common/issues"
 
 [tool.poetry.dependencies]
-python = ">=3.12,<3.13"
+python = ">=3.12"
 pandas = "*"
 azure-identity = { version = "*", optional = true }
 h5py = { version = "*", optional = true }
