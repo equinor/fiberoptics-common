@@ -66,7 +66,7 @@ jobs:
           (cd docs; poetry run make html)
           poetry run ruff format --check --diff .
       - uses: actions/configure-pages@v4
-      - uses: actions/upload-pages-artifact@v2
+      - uses: actions/upload-pages-artifact@v3
         with:
           path: "./docs/_build/html"
       - uses: actions/deploy-pages@v4
