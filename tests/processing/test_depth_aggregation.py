@@ -10,14 +10,14 @@ from fiberoptics.common.processing import depth_aggregation
 
 
 @pytest.mark.parametrize(
-    "start,end,aggregation_window,top_level_length",
+    "start,end,aggregation_window,num_features",
     [
         (0, 1000, 10, 1),
         (10, 100, 5, 2),
         (500, 5000, 2, 5),
     ],
 )
-def test_depth_aggregation(start: int, end: int, aggregation_window: int, top_level_length: int):
+def test_depth_aggregation(start: int, end: int, aggregation_window: int, num_features: int):
     # Arrange
     # Generate example data
     num_intervals = 10
@@ -25,7 +25,7 @@ def test_depth_aggregation(start: int, end: int, aggregation_window: int, top_le
     loci_range = range(start, end + 1)  # From start to end, inclusive
 
     # Create the multiindex column
-    feature_ids = [f"feature{i}" for i in range(0, top_level_length)]
+    feature_ids = [f"feature{i}" for i in range(0, num_features)]
     loci = loci_range
 
     columns = pd.MultiIndex.from_product([feature_ids, loci], names=["featureId", "loci"])
@@ -44,8 +44,8 @@ def test_depth_aggregation(start: int, end: int, aggregation_window: int, top_le
 
     # Act
     aggregated_df = depth_aggregation(df, aggregation_window=aggregation_window)
-    grouped = df.groupby(level=0, axis=1)
-    grouped_dfs = [grouped.get_group(group_name) for group_name in grouped.groups]
+    feature_ids = df.columns.get_level_values(0).unique()  # we don't reuse existing featureIds from above just to be sure
+    grouped_dfs = [df.xs(feature_id, axis=1, level=0, drop_level=False) for feature_id in feature_ids]
     expected = reduce(
         lambda acc, obj: acc + obj,
         map(
