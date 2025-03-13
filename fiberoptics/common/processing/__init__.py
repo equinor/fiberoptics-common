@@ -150,9 +150,10 @@ def depth_aggregation(df: pd.DataFrame, aggregation_window: int = 0, aggregation
     aggregated_dfs = []
     for grouped_df in grouped_dfs:
         columns = grouped_df.columns.levels[1] if grouped_df.columns.nlevels > 1 else grouped_df.columns
-        groups = grouped_df.groupby((columns / aggregation_window).astype("int") * aggregation_window, axis=1)
-        grouped_df: pd.DataFrame = getattr(groups, aggregation_function)()
-        aggregated_dfs.append(grouped_df)
+        grouped_columns = (columns // aggregation_window) * aggregation_window
+        grouped_df.columns = grouped_columns
+        aggregated_grouped_df = grouped_df.T.groupby(level=0).agg(aggregation_function).T
+        aggregated_dfs.append(aggregated_grouped_df)
 
     merged_df = pd.concat(aggregated_dfs, axis=1, keys=df.columns.levels[0]) if len(aggregated_dfs) > 1 else aggregated_dfs[0]
 
