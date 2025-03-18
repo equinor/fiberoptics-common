@@ -68,15 +68,15 @@ def parse_type(value: typing.Any, Type: _T) -> _T:
     """
     if Type == "ignore" or Type == inspect._empty:
         return value
-    if Type == bool:
+    if Type is bool:
         return parse_bool(value)
-    if Type == int:
+    if Type is int:
         return parse_int(value)
-    if Type == str:
+    if Type is str:
         return parse_str(value)
-    if Type == uuid.UUID:
+    if Type is uuid.UUID:
         return parse_uuid(value)
-    if Type == pd.Timestamp:
+    if Type is pd.Timestamp:
         return parse_time(value)
     if hasattr(Type, "__annotations__") and isinstance(value, dict):
         return {k: parse_type(v, Type.__annotations__[k]) for k, v in value.items()}
@@ -98,7 +98,7 @@ def parse_type(value: typing.Any, Type: _T) -> _T:
         if value in args:
             return value
         raise ValueError(f"Expected one of {args} but got '{value}'")
-    if origin == list:
+    if origin is list:
         try:
             SubType = args[0]
         except KeyError:
