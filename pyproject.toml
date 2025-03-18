@@ -34,12 +34,12 @@ packages = [{ include = "fiberoptics" }]
 
 [tool.poetry.dependencies]
 python = ">=3.12"
-pandas = "*"
-azure-identity = { version = "*", optional = true }
-h5py = { version = "*", optional = true }
-matplotlib = { version = "*", optional = true }
-scipy = { version = "*", optional = true }
-scikit-learn = { version = "*", optional = true }
+pandas = "^2.2.0"
+azure-identity = { version = "^1.15.0", optional = true }
+h5py = { version = "^3.10.0", optional = true }
+matplotlib = { version = "^3.8.3", optional = true }
+scipy = { version = "^1.12.0", optional = true }
+scikit-learn = { version = "^1.4.1.post1", optional = true }
 
 [tool.poetry.extras]
 auth = ["azure-identity"]
@@ -54,19 +54,19 @@ all = ["azure-identity", "h5py", "matplotlib", "scipy", "scikit-learn"]
 optional = true
 
 [tool.poetry.group.dev.dependencies]
-pytest = "*"
-pytest-mock = "*"
-pytest-cov = "*"
-ruff = "*"
-bump-my-version = "*"
+pytest = "^8.0.1"
+pytest-mock = "^3.12.0"
+pytest-cov = "^4.1.0"
+ruff = "^0.2.2"
+bump-my-version = "^0.17.4"
 
 [tool.poetry.group.docs]
 optional = true
 
 [tool.poetry.group.docs.dependencies]
-sphinx = "*"
-sphinx_design = "*"
-sphinx_rtd_theme = "*"
+sphinx = "^7.2.6"
+sphinx_design = "^0.5.0"
+sphinx_rtd_theme = "^2.0.0"
 
 [tool.bumpversion]
 current_version = "2.2.0"
