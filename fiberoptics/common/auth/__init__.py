@@ -5,13 +5,21 @@ import os
 from pathlib import Path
 from typing import List
 
+from types import TracebackType
+from typing import Any, ClassVar, Self
+
 from azure.identity import (
     AuthenticationRecord,
     ClientSecretCredential,
     DeviceCodeCredential,
     InteractiveBrowserCredential,
     TokenCachePersistenceOptions,
+    DefaultAzureCredential
 )
+
+from azure.core.credentials import AccessToken
+from azure.core.credentials_async import AsyncTokenCredential
+
 
 logger = logging.getLogger("fiberoptics.common")
 
@@ -213,3 +221,55 @@ def remove_cached_credential(name: str):
 
     """
     CredentialCache(name).remove_cached_credential()
+
+
+class NoCredentialsAvailable(Exception):
+    pass
+
+
+class Credential(AsyncTokenCredential):
+    _credential: DefaultAzureCredential | None = None
+    _instances: ClassVar[dict[str | None, Self]] = {}
+
+    def __new__(cls, resource_id: str | None = None):
+        if resource_id not in cls._instances:
+            instance = super().__new__(cls)
+            cls._instances[resource_id] = instance
+        return cls._instances[resource_id]
+
+    def __init__(self, resource_id: str | None = None):
+        if not hasattr(self, "initialized"):
+            self.scope = f"{resource_id}/.default" if resource_id else None
+            self.initialized = True
+
+    async def get_token(self, *scopes: Any, **kwargs: Any) -> AccessToken:
+        return Credential.get_credential().get_token(*[*([self.scope] if len(scopes) == 0 else []), *scopes], **kwargs)
+
+    @classmethod
+    def get_credential(cls) -> DefaultAzureCredential:
+        if cls._credential is None:
+            options = {
+                "exclude_workload_identity_credential": True,
+                "exclude_developer_cli_credential": True,
+                "exclude_environment_credential": True,
+                "exclude_powershell_credential": True,
+                "exclude_visual_studio_code_credential": True,
+                "exclude_interactive_browser_credential": True,
+            }
+            cls._credential = DefaultAzureCredential(**options)
+            assert cls._credential, NoCredentialsAvailable("No credentials are available")
+        return cls._credential
+
+    async def close(self) -> None:
+        pass
+
+    async def __aenter__(self) -> AsyncTokenCredential:
+        return self
+
+    async def __aexit__(
+        self,
+        _exc_type: type[BaseException] | None = None,
+        _exc_value: BaseException | None = None,
+        _traceback: TracebackType | None = None,
+    ) -> None:
+        pass
