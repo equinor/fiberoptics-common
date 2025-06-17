@@ -250,7 +250,6 @@ class Credential(AsyncTokenCredential):
     def get_credential(cls) -> DefaultAzureCredential:
         if cls._credential is None:
             options = {
-                "exclude_workload_identity_credential": True,
                 "exclude_developer_cli_credential": True,
                 "exclude_environment_credential": True,
                 "exclude_powershell_credential": True,
