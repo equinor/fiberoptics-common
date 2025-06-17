@@ -14,7 +14,7 @@ from azure.identity import (
     DeviceCodeCredential,
     InteractiveBrowserCredential,
     TokenCachePersistenceOptions,
-    DefaultAzureCredential
+    DefaultAzureCredential,
 )
 
 from azure.core.credentials import AccessToken
