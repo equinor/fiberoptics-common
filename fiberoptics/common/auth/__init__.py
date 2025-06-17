@@ -14,8 +14,9 @@ from azure.identity import (
     DeviceCodeCredential,
     InteractiveBrowserCredential,
     TokenCachePersistenceOptions,
-    DefaultAzureCredential,
 )
+
+from azure.identity.aio import DefaultAzureCredential
 
 from azure.core.credentials import AccessToken
 from azure.core.credentials_async import AsyncTokenCredential
@@ -243,7 +244,7 @@ class Credential(AsyncTokenCredential):
             self.initialized = True
 
     async def get_token(self, *scopes: Any, **kwargs: Any) -> AccessToken:
-        return Credential.get_credential().get_token(*[*([self.scope] if len(scopes) == 0 else []), *scopes], **kwargs)
+        return await Credential.get_credential().get_token(*[*([self.scope] if len(scopes) == 0 else []), *scopes], **kwargs)
 
     @classmethod
     def get_credential(cls) -> DefaultAzureCredential:
