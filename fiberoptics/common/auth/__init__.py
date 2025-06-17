@@ -258,7 +258,9 @@ class Credential(AsyncTokenCredential):
                 "exclude_interactive_browser_credential": True,
             }
             cls._credential = DefaultAzureCredential(**options)
-            assert cls._credential, NoCredentialsAvailable("No credentials are available")
+            if not cls._credential:
+                raise NoCredentialsAvailable("No credentials are available")
+            
         return cls._credential
 
     async def close(self) -> None:
