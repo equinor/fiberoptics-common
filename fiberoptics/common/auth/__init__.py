@@ -260,7 +260,7 @@ class Credential(AsyncTokenCredential):
             cls._credential = DefaultAzureCredential(**options)
             if not cls._credential:
                 raise NoCredentialsAvailable("No credentials are available")
-            
+
         return cls._credential
 
     async def close(self) -> None:
