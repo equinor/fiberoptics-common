@@ -225,29 +225,113 @@ def remove_cached_credential(name: str):
 
 
 class NoCredentialsAvailable(Exception):
+    """Exception raised when no Azure credentials are available for authentication."""
+
     pass
 
 
 class Credential(AsyncTokenCredential):
+    """
+    Azure credential class supporting async authentication.
+
+    This class provides a singleton credential instance per resource ID, using
+    Azure's DefaultAzureCredential with selected flows excluded. It implements
+    the async TokenCredential protocol for use with Azure SDK clients.
+
+    Attributes
+    ----------
+    _credential : DefaultAzureCredential | None
+        Cached credential instance.
+    _instances : ClassVar[dict[str | None, Self]]
+        Dictionary of singleton instances keyed by resource_id.
+
+    Methods
+    -------
+    __new__(cls, resource_id: str | None = None)
+        Returns a singleton instance for the given resource_id.
+    __init__(self, resource_id: str | None = None)
+        Initializes the credential with an optional resource_id.
+    async get_token(self, *scopes: Any, **kwargs: Any) -> AccessToken
+        Asynchronously acquires an access token for the specified scopes.
+    @classmethod
+    get_credential(cls) -> DefaultAzureCredential
+        Returns the cached DefaultAzureCredential instance, creating it if necessary.
+    async close(self) -> None
+        Placeholder for closing resources (no-op).
+    async __aenter__(self) -> AsyncTokenCredential
+        Async context manager entry.
+    async __aexit__(self, _exc_type, _exc_value, _traceback) -> None
+        Async context manager exit.
+    """
+
     _credential: DefaultAzureCredential | None = None
     _instances: ClassVar[dict[str | None, Self]] = {}
 
     def __new__(cls, resource_id: str | None = None):
+        """
+        Returns a singleton instance of Credential for the given resource_id.
+
+        Parameters
+        ----------
+        resource_id : str | None
+            The resource ID for which to create or retrieve the credential instance.
+
+        Returns
+        -------
+        Credential
+            The singleton credential instance for the specified resource_id.
+        """
         if resource_id not in cls._instances:
             instance = super().__new__(cls)
             cls._instances[resource_id] = instance
         return cls._instances[resource_id]
 
     def __init__(self, resource_id: str | None = None):
+        """
+        Initializes the Credential instance.
+
+        Parameters
+        ----------
+        resource_id : str | None
+            The resource ID to use for scoping the token, if provided.
+        """
         if not hasattr(self, "initialized"):
             self.scope = f"{resource_id}/.default" if resource_id else None
             self.initialized = True
 
     async def get_token(self, *scopes: Any, **kwargs: Any) -> AccessToken:
+        """
+        Asynchronously acquires an access token for the specified scopes.
+
+        Parameters
+        ----------
+        *scopes : Any
+            The scopes for which the token is requested.
+        **kwargs : Any
+            Additional keyword arguments for token acquisition.
+
+        Returns
+        -------
+        AccessToken
+            The acquired access token.
+        """
         return await Credential.get_credential().get_token(*[*([self.scope] if len(scopes) == 0 else []), *scopes], **kwargs)
 
     @classmethod
     def get_credential(cls) -> DefaultAzureCredential:
+        """
+        Returns the cached DefaultAzureCredential instance, creating it if necessary.
+
+        Returns
+        -------
+        DefaultAzureCredential
+            The credential instance with selected flows excluded.
+
+        Raises
+        ------
+        NoCredentialsAvailable
+            If no credentials are available.
+        """
         if cls._credential is None:
             options = {
                 "exclude_developer_cli_credential": True,
@@ -263,9 +347,20 @@ class Credential(AsyncTokenCredential):
         return cls._credential
 
     async def close(self) -> None:
+        """
+        Placeholder for closing resources. No operation is performed.
+        """
         pass
 
     async def __aenter__(self) -> AsyncTokenCredential:
+        """
+        Async context manager entry.
+
+        Returns
+        -------
+        AsyncTokenCredential
+            The credential instance itself.
+        """
         return self
 
     async def __aexit__(
@@ -274,4 +369,16 @@ class Credential(AsyncTokenCredential):
         _exc_value: BaseException | None = None,
         _traceback: TracebackType | None = None,
     ) -> None:
+        """
+        Async context manager exit. No operation is performed.
+
+        Parameters
+        ----------
+        _exc_type : type[BaseException] | None
+            Exception type, if any.
+        _exc_value : BaseException | None
+            Exception value, if any.
+        _traceback : TracebackType | None
+            Traceback, if any.
+        """
         pass
