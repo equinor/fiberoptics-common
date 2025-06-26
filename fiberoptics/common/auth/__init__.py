@@ -3,6 +3,7 @@
 import logging
 import os
 from pathlib import Path
+import time
 from typing import List
 
 from types import TracebackType
@@ -15,6 +16,8 @@ from azure.identity import (
     InteractiveBrowserCredential,
     TokenCachePersistenceOptions,
 )
+
+import azure.identity.aio
 
 from azure.identity.aio import DefaultAzureCredential
 
@@ -222,6 +225,28 @@ def remove_cached_credential(name: str):
 
     """
     CredentialCache(name).remove_cached_credential()
+
+
+# The following code is required to optimize token retrieval when using Azure CLI credentials.
+# See: https://github.com/Azure/azure-sdk-for-go/issues/23533#issuecomment-2387072175
+# Should be removed once the Azure SDK for Python supports caching of Azure CLI credentials.
+
+_access_tokens: dict[tuple[str], AccessToken] = {}
+
+_get_token = azure.identity.aio.AzureCliCredential.get_token
+
+
+def get_token_decorator(
+    self, *scopes: str, claims: str | None = None, tenant_id: str | None = None, **kwargs: Any
+) -> AccessToken:
+    token = _access_tokens.get(scopes, None)
+    if token is None or int(time.time()) >= token.expires_on - 3600:
+        token = _get_token(self, *scopes, claims=claims, tenant_id=tenant_id, **kwargs)
+        _access_tokens[scopes] = token
+    return token
+
+
+azure.identity.aio.AzureCliCredential.get_token = get_token_decorator
 
 
 class Credential(AsyncTokenCredential):
