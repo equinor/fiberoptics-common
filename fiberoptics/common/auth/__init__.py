@@ -236,12 +236,12 @@ _access_tokens: dict[tuple[str], AccessToken] = {}
 _get_token = azure.identity.aio.AzureCliCredential.get_token
 
 
-def get_token_decorator(
+async def get_token_decorator(
     self, *scopes: str, claims: str | None = None, tenant_id: str | None = None, **kwargs: Any
 ) -> AccessToken:
     token = _access_tokens.get(scopes, None)
     if token is None or int(time.time()) >= token.expires_on - 3600:
-        token = _get_token(self, *scopes, claims=claims, tenant_id=tenant_id, **kwargs)
+        token = await _get_token(self, *scopes, claims=claims, tenant_id=tenant_id, **kwargs)
         _access_tokens[scopes] = token
     return token
 
