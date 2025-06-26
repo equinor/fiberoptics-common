@@ -224,12 +224,6 @@ def remove_cached_credential(name: str):
     CredentialCache(name).remove_cached_credential()
 
 
-class NoCredentialsAvailable(Exception):
-    """Exception raised when no Azure credentials are available for authentication."""
-
-    pass
-
-
 class Credential(AsyncTokenCredential):
     """
     Azure credential class supporting async authentication.
@@ -341,8 +335,6 @@ class Credential(AsyncTokenCredential):
                 "exclude_interactive_browser_credential": True,
             }
             cls._credential = DefaultAzureCredential(**options)
-            if not cls._credential:
-                raise NoCredentialsAvailable("No credentials are available")
 
         return cls._credential
 
