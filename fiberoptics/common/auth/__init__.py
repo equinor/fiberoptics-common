@@ -3,7 +3,11 @@
 import logging
 import os
 from pathlib import Path
+import time
 from typing import List
+
+from types import TracebackType
+from typing import Any, ClassVar, Self
 
 from azure.identity import (
     AuthenticationRecord,
@@ -12,6 +16,14 @@ from azure.identity import (
     InteractiveBrowserCredential,
     TokenCachePersistenceOptions,
 )
+
+import azure.identity.aio
+
+from azure.identity.aio import DefaultAzureCredential, AzureCliCredential
+
+from azure.core.credentials import AccessToken
+from azure.core.credentials_async import AsyncTokenCredential
+
 
 logger = logging.getLogger("fiberoptics.common")
 
@@ -213,3 +225,163 @@ def remove_cached_credential(name: str):
 
     """
     CredentialCache(name).remove_cached_credential()
+
+
+class Credential(AsyncTokenCredential):
+    """
+    Azure credential class supporting async authentication.
+
+    This class provides a singleton credential instance per resource ID, using
+    Azure's DefaultAzureCredential with selected flows excluded. It implements
+    the async TokenCredential protocol for use with Azure SDK clients.
+
+    Attributes
+    ----------
+    _credential : DefaultAzureCredential | None
+        Cached credential instance.
+    _instances : ClassVar[dict[str | None, Self]]
+        Dictionary of singleton instances keyed by resource_id.
+     _azure_cli_access_tokens : ClassVar[dict[tuple[str], AccessToken]]
+        In-memory cache for Azure CLI access tokens, keyed by scopes tuple.
+
+    Methods
+    -------
+    __new__(cls, resource_id: str | None = None)
+        Returns a singleton instance for the given resource_id.
+    __init__(self, resource_id: str | None = None)
+        Initializes the credential with an optional resource_id.
+    async get_token(self, *scopes: Any, **kwargs: Any) -> AccessToken
+        Asynchronously acquires an access token for the specified scopes.
+    @classmethod
+    get_credential(cls) -> DefaultAzureCredential
+        Returns the cached DefaultAzureCredential instance, creating it if necessary.
+    async close(self) -> None
+        Placeholder for closing resources (no-op).
+    async __aenter__(self) -> AsyncTokenCredential
+        Async context manager entry.
+    async __aexit__(self, _exc_type, _exc_value, _traceback) -> None
+        Async context manager exit.
+    """
+
+    _credential: DefaultAzureCredential | None = None
+    _instances: ClassVar[dict[str | None, Self]] = {}
+    _azure_cli_access_tokens: ClassVar[dict[tuple[str], AccessToken]] = {}
+
+    def __new__(cls, resource_id: str | None = None):
+        """
+        Returns a singleton instance of Credential for the given resource_id.
+
+        Parameters
+        ----------
+        resource_id : str | None
+            The resource ID for which to create or retrieve the credential instance.
+
+        Returns
+        -------
+        Credential
+            The singleton credential instance for the specified resource_id.
+        """
+        if resource_id not in cls._instances:
+            instance = super().__new__(cls)
+            cls._instances[resource_id] = instance
+        return cls._instances[resource_id]
+
+    def __init__(self, resource_id: str | None = None):
+        """
+        Initializes the Credential instance.
+
+        Parameters
+        ----------
+        resource_id : str | None
+            The resource ID to use for scoping the token, if provided.
+        """
+        if not hasattr(self, "initialized"):
+            self.scope = f"{resource_id}/.default" if resource_id else None
+            self.initialized = True
+
+    async def get_token(self, *scopes: Any, **kwargs: Any) -> AccessToken:
+        """
+        Asynchronously acquires an access token for the specified scopes.
+        If the underlying credential is AzureCliCredential, applies in-memory caching.
+        """
+        credential = Credential.get_credential()
+        scopes_tuple = tuple([self.scope] if len(scopes) == 0 and self.scope else scopes)
+
+        # The following code is required to optimize token retrieval when using Azure CLI credentials.
+        # See: https://github.com/Azure/azure-sdk-for-go/issues/23533#issuecomment-2387072175
+        # Should be removed once the Azure SDK for Python supports caching of Azure CLI credentials.
+        if isinstance(credential._successful_credential, AzureCliCredential):
+            token = self._azure_cli_access_tokens.get(scopes_tuple, None)
+            if token is not None and int(time.time()) < token.expires_on - 300:
+                return token
+
+        token = await credential.get_token(*scopes_tuple, **kwargs)
+
+        if isinstance(credential._successful_credential, AzureCliCredential):
+            self._azure_cli_access_tokens[scopes_tuple] = token
+
+        return token
+
+    @classmethod
+    def get_credential(cls) -> DefaultAzureCredential:
+        """
+        Returns the cached DefaultAzureCredential instance, creating it if necessary.
+
+        Returns
+        -------
+        DefaultAzureCredential
+            The credential instance with selected flows excluded.
+
+        Raises
+        ------
+        NoCredentialsAvailable
+            If no credentials are available.
+        """
+        if cls._credential is None:
+            options = {
+                "exclude_developer_cli_credential": True,
+                "exclude_environment_credential": True,
+                "exclude_powershell_credential": True,
+                "exclude_visual_studio_code_credential": True,
+                "exclude_interactive_browser_credential": True,
+            }
+            cls._credential = DefaultAzureCredential(**options)
+
+        return cls._credential
+
+    async def close(self) -> None:
+        """
+        Placeholder for closing resources. No operation is performed.
+        """
+        pass
+
+    async def __aenter__(self) -> AsyncTokenCredential:
+        """
+        Async context manager entry.
+
+        Returns
+        -------
+        AsyncTokenCredential
+            The credential instance itself.
+        """
+        return self
+
+    async def __aexit__(
+        self,
+        _exc_type: type[BaseException] | None = None,
+        _exc_value: BaseException | None = None,
+        _traceback: TracebackType | None = None,
+    ) -> None:
+        """
+        Async context manager exit. No operation is performed.
+
+        Parameters
+        ----------
+        _exc_type : type[BaseException] | None
+            Exception type, if any.
+        _exc_value : BaseException | None
+            Exception value, if any.
+        _traceback : TracebackType | None
+            Traceback, if any.
+        """
+        pass
