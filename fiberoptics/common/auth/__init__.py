@@ -310,14 +310,17 @@ class Credential(AsyncTokenCredential):
         # The following code is required to optimize token retrieval when using Azure CLI credentials.
         # See: https://github.com/Azure/azure-sdk-for-go/issues/23533#issuecomment-2387072175
         # Should be removed once the Azure SDK for Python supports caching of Azure CLI credentials.
-        if isinstance(credential, AzureCliCredential):
+        if isinstance(credential._successful_credential, AzureCliCredential):
             token = self._azure_cli_access_tokens.get(scopes_tuple, None)
-            if token is None or int(time.time()) >= token.expires_on - 3600:
-                token = await credential.get_token(*scopes_tuple, **kwargs)
-                self._azure_cli_access_tokens[scopes_tuple] = token
-            return token
+            if token is not None and int(time.time()) < token.expires_on - 300:
+                return token
 
-        return await credential.get_token(*scopes_tuple, **kwargs)
+        token = await credential.get_token(*scopes_tuple, **kwargs)
+
+        if isinstance(credential._successful_credential, AzureCliCredential):
+            self._azure_cli_access_tokens[scopes_tuple] = token
+
+        return token
 
     @classmethod
     def get_credential(cls) -> DefaultAzureCredential:
