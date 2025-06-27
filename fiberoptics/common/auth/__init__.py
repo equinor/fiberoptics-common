@@ -19,7 +19,7 @@ from azure.identity import (
 
 import azure.identity.aio
 
-from azure.identity.aio import DefaultAzureCredential
+from azure.identity.aio import DefaultAzureCredential, AzureCliCredential
 
 from azure.core.credentials import AccessToken
 from azure.core.credentials_async import AsyncTokenCredential
@@ -227,28 +227,6 @@ def remove_cached_credential(name: str):
     CredentialCache(name).remove_cached_credential()
 
 
-# The following code is required to optimize token retrieval when using Azure CLI credentials.
-# See: https://github.com/Azure/azure-sdk-for-go/issues/23533#issuecomment-2387072175
-# Should be removed once the Azure SDK for Python supports caching of Azure CLI credentials.
-
-_access_tokens: dict[tuple[str], AccessToken] = {}
-
-_get_token = azure.identity.aio.AzureCliCredential.get_token
-
-
-async def get_token_decorator(
-    self, *scopes: str, claims: str | None = None, tenant_id: str | None = None, **kwargs: Any
-) -> AccessToken:
-    token = _access_tokens.get(scopes, None)
-    if token is None or int(time.time()) >= token.expires_on - 3600:
-        token = await _get_token(self, *scopes, claims=claims, tenant_id=tenant_id, **kwargs)
-        _access_tokens[scopes] = token
-    return token
-
-
-azure.identity.aio.AzureCliCredential.get_token = get_token_decorator
-
-
 class Credential(AsyncTokenCredential):
     """
     Azure credential class supporting async authentication.
@@ -263,6 +241,8 @@ class Credential(AsyncTokenCredential):
         Cached credential instance.
     _instances : ClassVar[dict[str | None, Self]]
         Dictionary of singleton instances keyed by resource_id.
+     _azure_cli_access_tokens : ClassVar[dict[tuple[str], AccessToken]]
+        In-memory cache for Azure CLI access tokens, keyed by scopes tuple.
 
     Methods
     -------
@@ -285,6 +265,7 @@ class Credential(AsyncTokenCredential):
 
     _credential: DefaultAzureCredential | None = None
     _instances: ClassVar[dict[str | None, Self]] = {}
+    _azure_cli_access_tokens: ClassVar[dict[tuple[str], AccessToken]] = {}
 
     def __new__(cls, resource_id: str | None = None):
         """
@@ -321,20 +302,22 @@ class Credential(AsyncTokenCredential):
     async def get_token(self, *scopes: Any, **kwargs: Any) -> AccessToken:
         """
         Asynchronously acquires an access token for the specified scopes.
-
-        Parameters
-        ----------
-        *scopes : Any
-            The scopes for which the token is requested.
-        **kwargs : Any
-            Additional keyword arguments for token acquisition.
-
-        Returns
-        -------
-        AccessToken
-            The acquired access token.
+        If the underlying credential is AzureCliCredential, applies in-memory caching.
         """
-        return await Credential.get_credential().get_token(*[*([self.scope] if len(scopes) == 0 else []), *scopes], **kwargs)
+        credential = Credential.get_credential()
+        scopes_tuple = tuple([self.scope] if len(scopes) == 0 and self.scope else scopes)
+
+        # The following code is required to optimize token retrieval when using Azure CLI credentials.
+        # See: https://github.com/Azure/azure-sdk-for-go/issues/23533#issuecomment-2387072175
+        # Should be removed once the Azure SDK for Python supports caching of Azure CLI credentials.
+        if isinstance(credential, AzureCliCredential):
+            token = self._azure_cli_access_tokens.get(scopes_tuple, None)
+            if token is None or int(time.time()) >= token.expires_on - 3600:
+                token = await credential.get_token(*scopes_tuple, **kwargs)
+                self._azure_cli_access_tokens[scopes_tuple] = token
+            return token
+
+        return await credential.get_token(*scopes_tuple, **kwargs)
 
     @classmethod
     def get_credential(cls) -> DefaultAzureCredential:
