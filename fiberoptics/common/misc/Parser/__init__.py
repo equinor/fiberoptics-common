@@ -6,6 +6,7 @@ import re
 import typing
 import uuid
 
+import numpy as np
 import pandas as pd
 
 _T = typing.TypeVar("_T")
@@ -157,7 +158,7 @@ def parse_int(value: int):
         If the input is not explicitly of int type.
 
     """
-    if not isinstance(value, int):
+    if not isinstance(value, int | np.int64):
         raise ValueError(f"'{value}' is not of type int")
     return value
 
