@@ -1,6 +1,7 @@
 import typing
 import uuid
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -131,7 +132,32 @@ def test_parse_int(value):
     assert parse_int(value) == value
 
 
-@pytest.mark.parametrize("value", ["1", 1.1])
+@pytest.mark.parametrize("value", [np.int32(1), -np.int32(1)])
+def test_parse_numpy_int32(value):
+    assert parse_int(value) == value
+
+
+@pytest.mark.parametrize("value", [np.int64(np.iinfo(np.int64).max), np.int64(np.iinfo(np.int64).min)])
+def test_parse_numpy_int64(value):
+    assert parse_int(value) == value
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "1",
+        1.1,
+        2.5,
+        float("inf"),
+        float("-inf"),
+        float("nan"),
+        np.float32(1.5),
+        np.float64(2.7),
+        complex(1, 2),
+        np.complex64(1 + 2j),
+        np.complex128(3 + 4j),
+    ],
+)
 def test_parse_int__invalid_input__should_raise(value):
     with pytest.raises(ValueError):
         parse_int(value)
