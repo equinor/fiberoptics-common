@@ -158,9 +158,9 @@ def parse_int(value: int):
         If the input is not explicitly of int type.
 
     """
-    if not isinstance(value, int | np.int64):
+    if not isinstance(value, (int, np.integer)):
         raise ValueError(f"'{value}' is not of type int")
-    return value
+    return int(value)
 
 
 def parse_str(value: typing.Any):
