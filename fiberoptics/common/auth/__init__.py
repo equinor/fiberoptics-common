@@ -17,9 +17,12 @@ from azure.identity import (
     TokenCachePersistenceOptions,
 )
 
-import azure.identity.aio
-
-from azure.identity.aio import DefaultAzureCredential, AzureCliCredential
+from azure.identity.aio import (
+    AzureCliCredential,
+    ChainedTokenCredential,
+    WorkloadIdentityCredential,
+    ManagedIdentityCredential,
+)
 
 from azure.core.credentials import AccessToken
 from azure.core.credentials_async import AsyncTokenCredential
@@ -232,12 +235,12 @@ class Credential(AsyncTokenCredential):
     Azure credential class supporting async authentication.
 
     This class provides a singleton credential instance per resource ID, using
-    Azure's DefaultAzureCredential with selected flows excluded. It implements
-    the async TokenCredential protocol for use with Azure SDK clients.
+    a chained credential that tries Azure CLI, Workload Identity, and Managed Identity
+    in order. It implements the async TokenCredential protocol for use with Azure SDK clients.
 
     Attributes
     ----------
-    _credential : DefaultAzureCredential | None
+    _credential : ChainedTokenCredential | None
         Cached credential instance.
     _instances : ClassVar[dict[str | None, Self]]
         Dictionary of singleton instances keyed by resource_id.
@@ -253,8 +256,8 @@ class Credential(AsyncTokenCredential):
     async get_token(self, *scopes: Any, **kwargs: Any) -> AccessToken
         Asynchronously acquires an access token for the specified scopes.
     @classmethod
-    get_credential(cls) -> DefaultAzureCredential
-        Returns the cached DefaultAzureCredential instance, creating it if necessary.
+    get_credential(cls) -> ChainedTokenCredential
+        Returns the cached ChainedTokenCredential instance, creating it if necessary.
     async close(self) -> None
         Placeholder for closing resources (no-op).
     async __aenter__(self) -> AsyncTokenCredential
@@ -263,7 +266,7 @@ class Credential(AsyncTokenCredential):
         Async context manager exit.
     """
 
-    _credential: DefaultAzureCredential | None = None
+    _credential: ChainedTokenCredential | None = None
     _instances: ClassVar[dict[str | None, Self]] = {}
     _azure_cli_access_tokens: ClassVar[dict[tuple[str], AccessToken]] = {}
 
@@ -323,45 +326,45 @@ class Credential(AsyncTokenCredential):
         return token
 
     @classmethod
-    def get_credential(cls) -> DefaultAzureCredential:
+    def get_credential(cls) -> ChainedTokenCredential:
         """
-        Returns the cached DefaultAzureCredential instance, creating it if necessary.
+        Returns the cached ChainedTokenCredential instance, creating it if necessary.
+
+        The credential chain attempts authentication in the following order:
+        1. Azure CLI
+        2. Workload Identity
+        3. Managed Identity
 
         Returns
         -------
-        DefaultAzureCredential
-            The credential instance with selected flows excluded.
+        ChainedTokenCredential
+            The credential instance with the configured chain.
 
         Raises
         ------
-        NoCredentialsAvailable
-            If no credentials are available.
+        RuntimeError
+            If no credentials could be instantiated.
         """
-        # There is no way to control the order of credentials that DefaultAzureCredential attempts,
-        # so we attempt to create it without managed identity first, and retry with it enabled if
-        # that fails. See: https://github.com/equinor/fiberoptics-common/issues/50
+        # Try credentials in a specific order: Azure CLI → Workload Identity → Managed Identity
+        # See: https://github.com/equinor/fiberoptics-common/issues/50
         if cls._credential is None:
-            options = {
-                "exclude_developer_cli_credential": True,
-                "exclude_environment_credential": True,
-                "exclude_powershell_credential": True,
-                "exclude_visual_studio_code_credential": True,
-                "exclude_interactive_browser_credential": True,
-                "exclude_managed_identity_credential": True,
-            }
+            credential_types = [
+                AzureCliCredential,
+                WorkloadIdentityCredential,
+                ManagedIdentityCredential,
+            ]
 
-            try:
-                cls._credential = DefaultAzureCredential(**options)
-            except Exception as e:
-                logger.warning(
-                    f"Failed to create DefaultAzureCredential without managed identity: {e}. "
-                    "Retrying with managed identity enabled."
-                )
-                options["exclude_managed_identity_credential"] = False
-                # At this point, the next two have been tried before, no need to retry them
-                options["exclude_workload_identity_credential"] = True
-                options["exclude_cli_credential"] = True
-                cls._credential = DefaultAzureCredential(**options)
+            credentials = []
+            for credential_type in credential_types:
+                try:
+                    credentials.append(credential_type())
+                except ValueError as e:
+                    logger.debug(f"Failed to instantiate {credential_type.__name__}: {e}")
+
+            if not credentials:
+                raise RuntimeError("No Azure credentials could be instantiated")
+
+            cls._credential = ChainedTokenCredential(*credentials)
 
         return cls._credential
 
