@@ -337,6 +337,9 @@ class Credential(AsyncTokenCredential):
         NoCredentialsAvailable
             If no credentials are available.
         """
+        # There is no way to control the order of credentials that DefaultAzureCredential attempts,
+        # so we attempt to create it without managed identity first, and retry with it enabled if
+        # that fails. See: https://github.com/equinor/fiberoptics-common/issues/50
         if cls._credential is None:
             options = {
                 "exclude_developer_cli_credential": True,
@@ -344,8 +347,21 @@ class Credential(AsyncTokenCredential):
                 "exclude_powershell_credential": True,
                 "exclude_visual_studio_code_credential": True,
                 "exclude_interactive_browser_credential": True,
+                "exclude_managed_identity_credential": True,
             }
-            cls._credential = DefaultAzureCredential(**options)
+
+            try:
+                cls._credential = DefaultAzureCredential(**options)
+            except Exception as e:
+                logger.warning(
+                    f"Failed to create DefaultAzureCredential without managed identity: {e}. "
+                    "Retrying with managed identity enabled."
+                )
+                options["exclude_managed_identity_credential"] = False
+                # At this point, the next two have been tried before, no need to retry them
+                options["exclude_workload_identity_credential"] = True
+                options["exclude_cli_credential"] = True
+                cls._credential = DefaultAzureCredential(**options)
 
         return cls._credential
 
