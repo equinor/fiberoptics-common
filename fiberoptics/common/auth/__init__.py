@@ -325,8 +325,6 @@ class _BaseCredential(ABC):
         ----------
         credential : Any
             The chained credential instance.
-        cli_credential_type : type
-            The Azure CLI credential type to check against.
         scopes_tuple : tuple[str, ...]
             The scopes for which to check the cache.
 
