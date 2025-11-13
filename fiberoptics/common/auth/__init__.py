@@ -32,6 +32,10 @@ from azure.core.credentials import AccessToken, TokenCredential
 from azure.core.credentials_async import AsyncTokenCredential
 
 
+ChainedTokenCredentialAlias: TypeAlias = ChainedTokenCredential | AsyncChainedTokenCredential
+AzureCliCredentialAlias: TypeAlias = AzureCliCredential | AsyncAzureCliCredential
+
+
 logger = logging.getLogger("fiberoptics.common")
 
 
@@ -259,9 +263,6 @@ class _BaseCredential(ABC):
     _instances: ClassVar[dict[str | None, Self]] = {}
     _azure_cli_access_tokens: ClassVar[dict[tuple[str, ...], AccessToken]] = {}
     _cache_skew: ClassVar[int] = 300
-
-    ChainedTokenCredentialAlias: TypeAlias = ChainedTokenCredential | AsyncChainedTokenCredential
-    AzureCliCredentialAlias: TypeAlias = AzureCliCredential | AsyncAzureCliCredential
 
     def __new__(cls, resource_id: str | None = None):
         """
