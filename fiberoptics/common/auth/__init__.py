@@ -6,25 +6,29 @@ from pathlib import Path
 import time
 from typing import List
 
-from types import TracebackType
-from typing import Any, ClassVar, Self
+from abc import ABC, abstractmethod
+
+from typing import Any, ClassVar, Self, TypeAlias
 
 from azure.identity import (
     AuthenticationRecord,
+    AzureCliCredential,
     ClientSecretCredential,
+    DefaultAzureCredential,
     DeviceCodeCredential,
     InteractiveBrowserCredential,
     TokenCachePersistenceOptions,
+    ChainedTokenCredential,
 )
 
 from azure.identity.aio import (
-    AzureCliCredential,
-    ChainedTokenCredential,
-    WorkloadIdentityCredential,
-    ManagedIdentityCredential,
+    AzureCliCredential as AsyncAzureCliCredential,
+    ChainedTokenCredential as AsyncChainedTokenCredential,
+    WorkloadIdentityCredential as AsyncWorkloadIdentityCredential,
+    ManagedIdentityCredential as AsyncManagedIdentityCredential,
 )
 
-from azure.core.credentials import AccessToken
+from azure.core.credentials import AccessToken, TokenCredential
 from azure.core.credentials_async import AsyncTokenCredential
 
 
@@ -230,49 +234,34 @@ def remove_cached_credential(name: str):
     CredentialCache(name).remove_cached_credential()
 
 
-class Credential(AsyncTokenCredential):
+class _BaseCredential(ABC):
     """
-    Azure credential class supporting async authentication.
+    Base class for Azure credential implementations providing shared singleton and caching logic.
 
-    This class provides a singleton credential instance per resource ID, using
-    a chained credential that tries Azure CLI, Workload Identity, and Managed Identity
-    in order. It implements the async TokenCredential protocol for use with Azure SDK clients.
+    This class implements the singleton pattern per resource_id and provides shared
+    token caching functionality for Azure CLI credentials.
 
     Attributes
     ----------
-    _credential : ChainedTokenCredential | None
-        Cached credential instance.
+    _credential : ChainedTokenCredential | AsyncChainedTokenCredential | None
+        Cached credential instance (specific to each subclass).
     _instances : ClassVar[dict[str | None, Self]]
         Dictionary of singleton instances keyed by resource_id.
-     _azure_cli_access_tokens : ClassVar[dict[tuple[str], AccessToken]]
+    _azure_cli_access_tokens : ClassVar[dict[tuple[str], AccessToken]]
         In-memory cache for Azure CLI access tokens, keyed by scopes tuple.
-
-    Methods
-    -------
-    __new__(cls, resource_id: str | None = None)
-        Returns a singleton instance for the given resource_id.
-    __init__(self, resource_id: str | None = None)
-        Initializes the credential with an optional resource_id.
-    async get_token(self, *scopes: Any, **kwargs: Any) -> AccessToken
-        Asynchronously acquires an access token for the specified scopes.
-    @classmethod
-    get_credential(cls) -> ChainedTokenCredential
-        Returns the cached ChainedTokenCredential instance, creating it if necessary.
-    async close(self) -> None
-        Placeholder for closing resources (no-op).
-    async __aenter__(self) -> AsyncTokenCredential
-        Async context manager entry.
-    async __aexit__(self, _exc_type, _exc_value, _traceback) -> None
-        Async context manager exit.
     """
 
-    _credential: ChainedTokenCredential | None = None
+    _credential: ClassVar[Any | None] = None
     _instances: ClassVar[dict[str | None, Self]] = {}
-    _azure_cli_access_tokens: ClassVar[dict[tuple[str], AccessToken]] = {}
+    _azure_cli_access_tokens: ClassVar[dict[tuple[str, ...], AccessToken]] = {}
+    _cache_skew: ClassVar[int] = 300
+
+    ChainedTokenCredentialAlias: TypeAlias = ChainedTokenCredential | AsyncChainedTokenCredential
+    AzureCliCredentialAlias: TypeAlias = AzureCliCredential | AsyncAzureCliCredential
 
     def __new__(cls, resource_id: str | None = None):
         """
-        Returns a singleton instance of Credential for the given resource_id.
+        Returns a singleton instance for the given resource_id.
 
         Parameters
         ----------
@@ -281,7 +270,7 @@ class Credential(AsyncTokenCredential):
 
         Returns
         -------
-        Credential
+        Self
             The singleton credential instance for the specified resource_id.
         """
         if resource_id not in cls._instances:
@@ -291,7 +280,7 @@ class Credential(AsyncTokenCredential):
 
     def __init__(self, resource_id: str | None = None):
         """
-        Initializes the Credential instance.
+        Initializes the credential instance.
 
         Parameters
         ----------
@@ -302,33 +291,143 @@ class Credential(AsyncTokenCredential):
             self.scope = f"{resource_id}/.default" if resource_id else None
             self.initialized = True
 
+    def _build_scopes_tuple(self, scopes: tuple[Any, ...]) -> tuple[str, ...]:
+        """
+        Determines the appropriate scopes tuple to use for token retrieval.
+
+        Parameters
+        ----------
+        scopes : tuple[Any, ...]
+            The scopes provided to get_token.
+
+        Returns
+        -------
+        tuple[str, ...]
+            The scopes tuple to use, either the provided scopes or the default scope.
+        """
+        return tuple([self.scope] if len(scopes) == 0 and self.scope else scopes)
+
+    def _get_cached_token(self, credential: ChainedTokenCredentialAlias, scopes_tuple: tuple[str, ...]) -> AccessToken | None:
+        """
+        Checks if a cached Azure CLI token should be used.
+
+        The following code is required to optimize token retrieval when using Azure CLI credentials.
+        See: https://github.com/Azure/azure-sdk-for-go/issues/23533#issuecomment-2387072175
+        See: https://github.com/Azure/azure-sdk-for-python/issues/40636#issuecomment-2819608804
+        Should be removed once the Azure SDK for Python supports caching of Azure CLI credentials.
+
+        Parameters
+        ----------
+        credential : Any
+            The chained credential instance.
+        cli_credential_type : type
+            The Azure CLI credential type to check against.
+        scopes_tuple : tuple[str, ...]
+            The scopes for which to check the cache.
+
+        Returns
+        -------
+        AccessToken | None
+            The cached token if available and valid, otherwise None.
+        """
+
+        cli_type = self._cli_credential_type()
+
+        successful = getattr(credential, "_successful_credential", None)
+        if cli_type and successful and isinstance(successful, cli_type):
+            token = self._azure_cli_access_tokens.get(scopes_tuple)
+            if token is not None and int(time.time()) < token.expires_on - self._cache_skew:
+                return token
+        return None
+
+    def _store_cached_token(self, credential: ChainedTokenCredentialAlias, scopes_tuple: tuple[Any, ...], token: AccessToken) -> None:
+        """
+        Caches the token if the successful credential is Azure CLI.
+
+        Parameters
+        ----------
+        credential : Any
+            The chained credential instance.
+        scopes_tuple : tuple[str, ...]
+            The scopes for which to cache the token.
+        token : AccessToken
+            The token to cache.
+        """
+        cli_type = self._cli_credential_type()
+        successful = getattr(credential, "_successful_credential", None)
+        if cli_type and successful and isinstance(successful, cli_type):
+            self._azure_cli_access_tokens[scopes_tuple] = token
+
+    def _prepare_token_request(
+        self, scopes: tuple[Any, ...]
+    ) -> tuple[ChainedTokenCredentialAlias, tuple[str, ...], AccessToken | None]:
+        credential = type(self).get_credential()
+        scopes_tuple = self._build_scopes_tuple(scopes)
+        return credential, scopes_tuple, self._get_cached_token(credential, scopes_tuple)
+
+    def _finalize_token(
+        self,
+        credential: ChainedTokenCredentialAlias,
+        scopes_tuple: tuple[str, ...],
+        token: AccessToken,
+    ) -> AccessToken:
+        self._store_cached_token(credential, scopes_tuple, token)
+        return token
+
+    @classmethod
+    def get_credential(cls) -> ChainedTokenCredentialAlias:
+        return cls._ensure_credential()
+
+    @classmethod
+    def _ensure_credential(cls) -> ChainedTokenCredentialAlias:
+        if cls._credential is None:
+            cls._credential = cls._build_credential()
+        return cls._credential
+
+    @classmethod
+    @abstractmethod
+    def _build_credential(cls) -> ChainedTokenCredentialAlias:
+        ...
+
+    @classmethod
+    @abstractmethod
+    def _cli_credential_type(cls) -> AzureCliCredentialAlias:
+        ...
+
+
+class AsyncCredential(_BaseCredential, AsyncTokenCredential):
+    """
+    Azure credential class supporting async authentication. For the sync version, see Credential.
+
+    This class provides a singleton credential instance per resource ID, using
+    a chained credential that tries Azure CLI, Workload Identity, and Managed Identity
+    in order. It implements the async TokenCredential protocol for use with Azure SDK clients.
+
+    Methods
+    -------
+    async get_token(self, *scopes: Any, **kwargs: Any) -> AccessToken
+        Asynchronously acquires an access token for the specified scopes.
+    @classmethod
+    get_credential(cls) -> AsyncChainedTokenCredential
+        Returns the cached AsyncChainedTokenCredential instance, creating it if necessary.
+    """
+
     async def get_token(self, *scopes: Any, **kwargs: Any) -> AccessToken:
         """
         Asynchronously acquires an access token for the specified scopes.
         If the underlying credential is AzureCliCredential, applies in-memory caching.
         """
-        credential = Credential.get_credential()
-        scopes_tuple = tuple([self.scope] if len(scopes) == 0 and self.scope else scopes)
-
-        # The following code is required to optimize token retrieval when using Azure CLI credentials.
-        # See: https://github.com/Azure/azure-sdk-for-go/issues/23533#issuecomment-2387072175
-        # Should be removed once the Azure SDK for Python supports caching of Azure CLI credentials.
-        if isinstance(credential._successful_credential, AzureCliCredential):
-            token = self._azure_cli_access_tokens.get(scopes_tuple, None)
-            if token is not None and int(time.time()) < token.expires_on - 300:
-                return token
+        credential, scopes_tuple, cached = self._prepare_token_request(scopes)
+        if cached:
+            return cached
 
         token = await credential.get_token(*scopes_tuple, **kwargs)
-
-        if isinstance(credential._successful_credential, AzureCliCredential):
-            self._azure_cli_access_tokens[scopes_tuple] = token
-
-        return token
+        return self._finalize_token(credential, scopes_tuple, token)
 
     @classmethod
-    def get_credential(cls) -> ChainedTokenCredential:
+    def _build_credential(cls) -> AsyncChainedTokenCredential:
         """
-        Returns the cached ChainedTokenCredential instance, creating it if necessary.
+        Returns the cached azure.identity.aio.ChainedTokenCredential instance, creating it if necessary.
 
         The credential chain attempts authentication in the following order:
         1. Azure CLI
@@ -337,7 +436,7 @@ class Credential(AsyncTokenCredential):
 
         Returns
         -------
-        ChainedTokenCredential
+        azure.identity.aio.ChainedTokenCredential
             The credential instance with the configured chain.
 
         Raises
@@ -347,60 +446,82 @@ class Credential(AsyncTokenCredential):
         """
         # Try credentials in a specific order: Azure CLI → Workload Identity → Managed Identity
         # See: https://github.com/equinor/fiberoptics-common/issues/50
-        if cls._credential is None:
-            credential_types = [
-                AzureCliCredential,
-                WorkloadIdentityCredential,
-                ManagedIdentityCredential,
-            ]
+        credential_types = [
+            AsyncAzureCliCredential,
+            AsyncWorkloadIdentityCredential,
+            AsyncManagedIdentityCredential,
+        ]
 
-            credentials = []
-            for credential_type in credential_types:
-                try:
-                    credentials.append(credential_type())
-                except ValueError as e:
-                    logger.debug(f"Failed to instantiate {credential_type.__name__}: {e}")
+        credentials = []
+        for credential_type in credential_types:
+            try:
+                credentials.append(credential_type())
+            except ValueError as e:
+                logger.debug(f"Failed to instantiate {credential_type.__name__}: {e}")
 
-            if not credentials:
-                raise RuntimeError("No Azure credentials could be instantiated")
+        if not credentials:
+            raise RuntimeError("No Azure credentials could be instantiated")
 
-            cls._credential = ChainedTokenCredential(*credentials)
+        return AsyncChainedTokenCredential(*credentials)
 
-        return cls._credential
+    @classmethod
+    def _cli_credential_type(cls) -> AzureCliCredential:
+        return AsyncAzureCliCredential
 
-    async def close(self) -> None:
+
+class Credential(_BaseCredential, TokenCredential):
+    """
+    Azure credential class supporting sync authentication. For the async version, see AsyncCredential.
+
+    This class provides a singleton credential instance per resource ID, using
+    a chained credential that tries Azure CLI, Workload Identity, and Managed Identity
+    in order. It implements the sync TokenCredential protocol for use with Azure SDK clients.
+
+    Methods
+    -------
+    get_token(self, *scopes: Any, **kwargs: Any) -> AccessToken
+        Synchronously acquires an access token for the specified scopes.
+    @classmethod
+    get_credential(cls) -> DefaultAzureCredential
+        Returns the cached DefaultAzureCredential instance, creating it if necessary.
+    """
+
+    def get_token(self, *scopes: Any, **kwargs: Any) -> AccessToken:
         """
-        Placeholder for closing resources. No operation is performed.
+        Synchronously acquires an access token for the specified scopes.
+        If the underlying credential is AzureCliCredential, applies in-memory caching.
         """
-        pass
+        credential, scopes_tuple, cached = self._prepare_token_request(scopes)
+        if cached:
+            return cached
 
-    async def __aenter__(self) -> AsyncTokenCredential:
+        token = credential.get_token(*scopes_tuple, **kwargs)
+        return self._finalize_token(credential, scopes_tuple, token)
+
+    @classmethod
+    def _build_credential(cls) -> DefaultAzureCredential:
         """
-        Async context manager entry.
+        Returns the cached DefaultAzureCredential instance, creating it if necessary.
 
         Returns
         -------
-        AsyncTokenCredential
-            The credential instance itself.
-        """
-        return self
+        DefaultAzureCredential
+            The credential instance with selected flows excluded.
 
-    async def __aexit__(
-        self,
-        _exc_type: type[BaseException] | None = None,
-        _exc_value: BaseException | None = None,
-        _traceback: TracebackType | None = None,
-    ) -> None:
+        Raises
+        ------
+        NoCredentialsAvailable
+            If no credentials are available.
         """
-        Async context manager exit. No operation is performed.
+        options = {
+            "exclude_developer_cli_credential": True,
+            "exclude_environment_credential": True,
+            "exclude_powershell_credential": True,
+            "exclude_visual_studio_code_credential": True,
+            "exclude_interactive_browser_credential": True,
+        }
+        return DefaultAzureCredential(**options)
 
-        Parameters
-        ----------
-        _exc_type : type[BaseException] | None
-            Exception type, if any.
-        _exc_value : BaseException | None
-            Exception value, if any.
-        _traceback : TracebackType | None
-            Traceback, if any.
-        """
-        pass
+    @classmethod
+    def _cli_credential_type(cls) -> AzureCliCredential:
+        return AzureCliCredential
