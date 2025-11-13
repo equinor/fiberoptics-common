@@ -33,7 +33,6 @@ from azure.core.credentials_async import AsyncTokenCredential
 
 
 ChainedTokenCredentialAlias: TypeAlias = ChainedTokenCredential | AsyncChainedTokenCredential
-AzureCliCredentialAlias: TypeAlias = AzureCliCredential | AsyncAzureCliCredential
 
 
 logger = logging.getLogger("fiberoptics.common")
@@ -323,7 +322,7 @@ class _BaseCredential(ABC):
 
         Parameters
         ----------
-        credential : Any
+        credential : ChainedTokenCredential | AsyncChainedTokenCredential
             The chained credential instance.
         scopes_tuple : tuple[str, ...]
             The scopes for which to check the cache.
@@ -351,7 +350,7 @@ class _BaseCredential(ABC):
 
         Parameters
         ----------
-        credential : Any
+        credential : ChainedTokenCredential | AsyncChainedTokenCredential
             The chained credential instance.
         scopes_tuple : tuple[str, ...]
             The scopes for which to cache the token.
@@ -396,7 +395,7 @@ class _BaseCredential(ABC):
 
     @classmethod
     @abstractmethod
-    def _cli_credential_type(cls) -> AzureCliCredentialAlias:
+    def _cli_credential_type(cls) -> type[AzureCliCredential] | type[AsyncAzureCliCredential]:
         ...
 
 
@@ -470,7 +469,7 @@ class AsyncCredential(_BaseCredential, AsyncTokenCredential):
         return AsyncChainedTokenCredential(*credentials)
 
     @classmethod
-    def _cli_credential_type(cls) -> AzureCliCredential:
+    def _cli_credential_type(cls) -> type[AzureCliCredential]:
         return AsyncAzureCliCredential
 
 
@@ -528,5 +527,5 @@ class Credential(_BaseCredential, TokenCredential):
         return DefaultAzureCredential(**options)
 
     @classmethod
-    def _cli_credential_type(cls) -> AzureCliCredential:
+    def _cli_credential_type(cls) -> type[AzureCliCredential]:
         return AzureCliCredential
