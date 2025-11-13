@@ -463,7 +463,7 @@ class AsyncCredential(_BaseCredential, AsyncTokenCredential):
         for credential_type in credential_types:
             try:
                 credentials.append(credential_type())
-            except ValueError as e:
+            except Exception as e:
                 logger.debug(f"Failed to instantiate {credential_type.__name__}: {e}")
 
         if not credentials:
