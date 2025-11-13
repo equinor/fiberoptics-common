@@ -36,6 +36,10 @@ logger = logging.getLogger("fiberoptics.common")
 
 
 def get_preferred_credential_type():
+    logger.warning(
+        "Deprecated: get_preferred_credential_type is deprecated and will be removed in future versions. \
+                   Use AsyncCredential or Credential classes directly."
+    )
     use_browser_credentials = os.getenv("USE_BROWSER_CREDENTIALS", "false").lower() == "true"
 
     if use_browser_credentials:
