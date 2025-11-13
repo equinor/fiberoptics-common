@@ -344,7 +344,9 @@ class _BaseCredential(ABC):
                 return token
         return None
 
-    def _store_cached_token(self, credential: ChainedTokenCredentialAlias, scopes_tuple: tuple[Any, ...], token: AccessToken) -> None:
+    def _store_cached_token(
+        self, credential: ChainedTokenCredentialAlias, scopes_tuple: tuple[Any, ...], token: AccessToken
+    ) -> None:
         """
         Caches the token if the successful credential is Azure CLI.
 
