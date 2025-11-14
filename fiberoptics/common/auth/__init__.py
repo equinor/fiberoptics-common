@@ -295,6 +295,20 @@ class _BaseCredential(ABC):
             self.scope = f"{resource_id}/.default" if resource_id else None
             self.initialized = True
 
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        """
+        Initializes subclass-specific class variables to ensure cache isolation.
+
+        Parameters
+        ----------
+        **kwargs : Any
+            Additional keyword arguments passed to the superclass.
+        """
+        super().__init_subclass__(**kwargs)
+        cls._credential = None
+        cls._instances = {}
+        cls._azure_cli_access_tokens = {}
+
     def _build_scopes_tuple(self, scopes: tuple[Any, ...]) -> tuple[str, ...]:
         """
         Determines the appropriate scopes tuple to use for token retrieval.
