@@ -39,7 +39,7 @@ class BaseCredential(ABC):
                 return token
         return None
 
-    def store_cached_token(self, scopes_tuple: tuple[Any, ...], token: AccessToken) -> None:
+    def store_cached_token(self, scopes_tuple: tuple[str, ...], token: AccessToken) -> None:
         successful = getattr(self.credential, "_successful_credential", None)
         if successful and isinstance(successful, (AzureCliCredential, AsyncAzureCliCredential)):
             self._azure_cli_access_tokens[scopes_tuple] = token
