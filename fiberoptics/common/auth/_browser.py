@@ -78,17 +78,36 @@ def use_browser_credentials() -> bool:
     return os.environ.get("USE_BROWSER_CREDENTIALS", "false").lower() == "true"
 
 
-def get_browser_credential_config() -> dict[str, Any]:
-    return {
+def get_browser_credential_config(overrides: dict[str, Any] | None = None) -> dict[str, Any]:
+    config = {
         "client_id": os.environ.get("AZURE_CLIENT_ID", os.environ.get("sp_client_id")),
         "tenant_id": os.environ.get("AZURE_TENANT_ID", os.environ.get("azure_tenant_id")),
         "redirect_uri": os.environ.get("REDIRECT_URI", "http://localhost:4000"),
     }
+    if overrides:
+        for key, value in overrides.items():
+            if value is not None:
+                config[key] = value
+    return config
 
 
 class InteractiveBrowserCredentialBase(ABC):
-    def __init__(self, *, resource_id: str | None, scope: str | None, persist_auth_record: bool):
-        config = get_browser_credential_config()
+    def __init__(
+        self,
+        *,
+        resource_id: str | None,
+        scope: str | None,
+        persist_auth_record: bool,
+        client_id: str | None = None,
+        tenant_id: str | None = None,
+        redirect_uri: str | None = None,
+    ):
+        overrides = {
+            "client_id": client_id,
+            "tenant_id": tenant_id,
+            "redirect_uri": redirect_uri,
+        }
+        config = get_browser_credential_config(overrides)
         if not config["client_id"] or not config["tenant_id"]:
             raise RuntimeError(
                 "Browser credentials require AZURE_CLIENT_ID and AZURE_TENANT_ID environment variables"
@@ -122,16 +141,48 @@ class InteractiveBrowserCredentialBase(ABC):
 
 
 class SyncInteractiveBrowserCredential(InteractiveBrowserCredentialBase, TokenCredential):
-    def __init__(self, *, resource_id: str | None, scope: str | None, persist_auth_record: bool):
-        super().__init__(resource_id=resource_id, scope=scope, persist_auth_record=persist_auth_record)
+    def __init__(
+        self,
+        *,
+        resource_id: str | None,
+        scope: str | None,
+        persist_auth_record: bool,
+        client_id: str | None = None,
+        tenant_id: str | None = None,
+        redirect_uri: str | None = None,
+    ):
+        super().__init__(
+            resource_id=resource_id,
+            scope=scope,
+            persist_auth_record=persist_auth_record,
+            client_id=client_id,
+            tenant_id=tenant_id,
+            redirect_uri=redirect_uri,
+        )
 
     def get_token(self, *scopes: Any, **kwargs: Any) -> AccessToken:
         return self.credential.get_token(*scopes, **kwargs)
 
 
 class AsyncInteractiveBrowserCredential(InteractiveBrowserCredentialBase, AsyncTokenCredential):
-    def __init__(self, *, resource_id: str | None, scope: str | None, persist_auth_record: bool):
-        super().__init__(resource_id=resource_id, scope=scope, persist_auth_record=persist_auth_record)
+    def __init__(
+        self,
+        *,
+        resource_id: str | None,
+        scope: str | None,
+        persist_auth_record: bool,
+        client_id: str | None = None,
+        tenant_id: str | None = None,
+        redirect_uri: str | None = None,
+    ):
+        super().__init__(
+            resource_id=resource_id,
+            scope=scope,
+            persist_auth_record=persist_auth_record,
+            client_id=client_id,
+            tenant_id=tenant_id,
+            redirect_uri=redirect_uri,
+        )
 
     async def get_token(self, *scopes: Any, **kwargs: Any) -> AccessToken:
         loop = asyncio.get_running_loop()

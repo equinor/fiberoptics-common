@@ -21,6 +21,9 @@ logger = logging.getLogger("fiberoptics.common")
 
 
 class AsyncCredential(BaseCredential, AsyncTokenCredential):
+    def __init__(self, resource_id: str | None = None, **kwargs: Any):
+        super().__init__(resource_id, **kwargs)
+
     async def get_token(self, *scopes: Any, **kwargs: Any) -> AccessToken:
         scopes_tuple = self.build_scopes_tuple(scopes)
         cached = self.get_cached_token(scopes_tuple)
@@ -36,11 +39,13 @@ class AsyncCredential(BaseCredential, AsyncTokenCredential):
 
         if use_browser_credentials():
             try:
+                browser_kwargs = self.get_browser_kwargs()
                 credentials.append(
                     AsyncInteractiveBrowserCredential(
                         resource_id=self.resource_id,
                         scope=self.scope,
                         persist_auth_record=False,
+                        **browser_kwargs,
                     )
                 )
             except BaseException as exc:

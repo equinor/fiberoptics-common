@@ -17,9 +17,10 @@ from azure.identity.aio import (
 class BaseCredential(ABC):
     _cache_skew: ClassVar[int] = 300
 
-    def __init__(self, resource_id: str | None = None):
+    def __init__(self, resource_id: str | None = None, **kwargs: Any):
         self.resource_id = resource_id
         self.scope = f"{resource_id}/.default" if resource_id else None
+        self._kwargs = kwargs
         self._azure_cli_access_tokens: dict[tuple[str, ...], AccessToken] = {}
         self._credential = self.build_credential()
 
@@ -42,6 +43,17 @@ class BaseCredential(ABC):
         successful = getattr(self.credential, "_successful_credential", None)
         if successful and isinstance(successful, (AzureCliCredential, AsyncAzureCliCredential)):
             self._azure_cli_access_tokens[scopes_tuple] = token
+
+    def get_browser_kwargs(self) -> dict[str, Any]:
+        return {
+            key: value
+            for key, value in (
+                ("client_id", self._kwargs.pop("client_id", None)),
+                ("tenant_id", self._kwargs.pop("tenant_id", None)),
+                ("redirect_uri", self._kwargs.pop("redirect_uri", None),)
+            )
+            if value is not None
+        }
 
     @abstractmethod
     def build_credential(self) -> ChainedTokenCredential | AsyncChainedTokenCredential:
