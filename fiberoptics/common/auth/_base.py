@@ -50,7 +50,10 @@ class BaseCredential(ABC):
             for key, value in (
                 ("client_id", self._kwargs.pop("client_id", None)),
                 ("tenant_id", self._kwargs.pop("tenant_id", None)),
-                ("redirect_uri", self._kwargs.pop("redirect_uri", None),)
+                (
+                    "redirect_uri",
+                    self._kwargs.pop("redirect_uri", None),
+                ),
             )
             if value is not None
         }

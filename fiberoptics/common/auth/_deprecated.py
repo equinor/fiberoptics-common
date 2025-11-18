@@ -6,7 +6,6 @@ from fiberoptics.common.auth._sync import Credential
 logger = logging.getLogger("fiberoptics.common")
 
 
-
 def get_default_credential(name: str = None, scopes: list[str] = [], **kwargs):
     """Retrieves default credential.
     Deprecated: get_default_credential is deprecated and will be removed in future versions. Use AsyncCredential or Credential classes directly.
@@ -22,6 +21,7 @@ def get_default_credential(name: str = None, scopes: list[str] = [], **kwargs):
 
     return Credential(*scopes, **kwargs)
 
+
 # def get_default_credential():
-    
+
 #     return Credential
