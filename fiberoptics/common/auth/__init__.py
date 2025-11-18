@@ -4,6 +4,8 @@ import logging
 import os
 from pathlib import Path
 import time
+import asyncio
+from functools import partial
 
 from abc import ABC, abstractmethod
 
@@ -162,39 +164,57 @@ def _get_browser_credential_config() -> dict[str, Any]:
     }
 
 
-def _create_browser_credential(
-    *,
-    resource_id: str | None,
-    scope: str | None,
-    persist_auth_record: bool,
-) -> Any:
-    config = _get_browser_credential_config()
-    if not config["client_id"] or not config["tenant_id"]:
-        raise RuntimeError("Browser credentials require AZURE_CLIENT_ID and AZURE_TENANT_ID environment variables")
+class _InteractiveBrowserCredentialBase(ABC):
+    def __init__(self, *, resource_id: str | None, scope: str | None, persist_auth_record: bool):
+        config = _get_browser_credential_config()
+        if not config["client_id"] or not config["tenant_id"]:
+            raise RuntimeError(
+                "Browser credentials require AZURE_CLIENT_ID and AZURE_TENANT_ID environment variables"
+            )
 
-    auth_record = _load_authentication_record(resource_id)
-    cache_options = _get_token_cache_persistence_options()
+        auth_record = _load_authentication_record(resource_id)
+        cache_options = _get_token_cache_persistence_options()
 
-    kwargs: dict[str, Any] = {
-        "client_id": config["client_id"],
-        "tenant_id": config["tenant_id"],
-        "redirect_uri": config["redirect_uri"],
-        "cache_persistence_options": cache_options,
-    }
-    if auth_record:
-        kwargs["authentication_record"] = auth_record
+        kwargs: dict[str, Any] = {
+            "client_id": config["client_id"],
+            "tenant_id": config["tenant_id"],
+            "redirect_uri": config["redirect_uri"],
+            "cache_persistence_options": cache_options,
+        }
+        if auth_record:
+            kwargs["authentication_record"] = auth_record
 
-    credential = InteractiveBrowserCredential(**kwargs)
+        self._credential = InteractiveBrowserCredential(**kwargs)
 
-    if persist_auth_record and not auth_record and hasattr(credential, "authenticate"):
-        try:
-            preferred_scope = [scope] if scope else None
-            new_record = credential.authenticate(scopes=preferred_scope)
-            _save_authentication_record(new_record, resource_id)
-        except BaseException as exc:
-            logger.warning(f"Failed to authenticate and save record: {exc}")
+        if persist_auth_record and not auth_record and hasattr(self._credential, "authenticate"):
+            try:
+                preferred_scope = [scope] if scope else None
+                new_record = self._credential.authenticate(scopes=preferred_scope)
+                _save_authentication_record(new_record, resource_id)
+            except BaseException as exc:
+                logger.warning(f"Failed to authenticate and save record: {exc}")
 
-    return credential
+    @property
+    def credential(self) -> InteractiveBrowserCredential:
+        return self._credential
+
+
+class _InteractiveBrowserCredential(_InteractiveBrowserCredentialBase, TokenCredential):
+    def __init__(self, *, resource_id: str | None, scope: str | None, persist_auth_record: bool):
+        super().__init__(resource_id=resource_id, scope=scope, persist_auth_record=persist_auth_record)
+
+    def get_token(self, *scopes: Any, **kwargs: Any) -> AccessToken:
+        return self.credential.get_token(*scopes, **kwargs)
+
+
+class _AsyncInteractiveBrowserCredential(_InteractiveBrowserCredentialBase, AsyncTokenCredential):
+    def __init__(self, *, resource_id: str | None, scope: str | None, persist_auth_record: bool):
+        super().__init__(resource_id=resource_id, scope=scope, persist_auth_record=persist_auth_record)
+
+    async def get_token(self, *scopes: Any, **kwargs: Any) -> AccessToken:
+        loop = asyncio.get_running_loop()
+        call = partial(self.credential.get_token, *scopes, **kwargs)
+        return await loop.run_in_executor(None, call)
 
 
 class _BaseCredential(ABC):
@@ -313,7 +333,7 @@ class AsyncCredential(_BaseCredential, AsyncTokenCredential):
         if _use_browser_credentials():
             try:
                 credentials.append(
-                    _create_browser_credential(
+                    _AsyncInteractiveBrowserCredential(
                         resource_id=self.resource_id,
                         scope=self.scope,
                         persist_auth_record=False,
@@ -363,7 +383,7 @@ class Credential(_BaseCredential, TokenCredential):
         if _use_browser_credentials():
             try:
                 credentials.append(
-                    _create_browser_credential(
+                    _InteractiveBrowserCredential(
                         resource_id=self.resource_id,
                         scope=self.scope,
                         persist_auth_record=True,
