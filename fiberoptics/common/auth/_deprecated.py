@@ -11,7 +11,7 @@ def get_default_credential(name: str = None, scopes: list[str] = [], **kwargs):
     Deprecated: get_default_credential is deprecated and will be removed in future versions. Use AsyncCredential or Credential classes directly.
     """
     logger.warning(
-        "Deprecated: get_preferred_credential_type is deprecated and will be removed in future versions. \
+        "Deprecated: get_default_credential is deprecated and will be removed in future versions. \
                    Use AsyncCredential or Credential classes directly."
     )
 
