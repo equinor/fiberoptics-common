@@ -38,207 +38,110 @@ ChainedTokenCredentialAlias: TypeAlias = ChainedTokenCredential | AsyncChainedTo
 logger = logging.getLogger("fiberoptics.common")
 
 
-def get_preferred_credential_type():
-    logger.warning(
-        "Deprecated: get_preferred_credential_type is deprecated and will be removed in future versions. \
-                   Use AsyncCredential or Credential classes directly."
+def _get_token_cache_persistence_options() -> TokenCachePersistenceOptions:
+    """
+    Returns token cache persistence options.
+
+    Returns
+    -------
+    TokenCachePersistenceOptions
+        Configuration for token cache persistence.
+    """
+    allow_unencrypted = os.environ.get("ALLOW_UNENCRYPTED_STORAGE", "false").lower() == "true"
+
+    options = TokenCachePersistenceOptions(
+        name="fiberoptics-common",
+        allow_unencrypted_storage=allow_unencrypted,
     )
-    use_browser_credentials = os.getenv("USE_BROWSER_CREDENTIALS", "false").lower() == "true"
 
-    if use_browser_credentials:
-        return InteractiveBrowserCredential
-    else:
-        return DeviceCodeCredential
+    if allow_unencrypted:
+        logger.warning(
+            "Unencrypted storage of token cache has been enabled. "
+            "It is your responsibility to safeguard the cache and decommission it when no longer needed."
+        )
+
+    return options
 
 
-class CredentialCache:
-    """Convenience class to facility credential caching.
-
-    Credential caching is achieved by writing two files to disk:
-    - An authentication record containing session information
-    - An identity service file containing the actual credentials
-
-    The authentication record contains no secrets and is stored in plaintext,
-    but the identity service file on the other hand contains secrets and should
-    be encrypted when storing it in the filesystem.
-
-    Encryption is however not supported in headless sessions, e.g. when using
-    the Kubeflow server. The only way to cache credentials on Kubeflow is by
-    setting the 'ALLOW_UNENCRYPTED_STORAGE' environment variable to 'true'.
-    Note that this will store secrets in plaintext, and should only be used
-    if you know what you're doing.
-
+def _get_authentication_record_path() -> Path:
     """
-
-    def __init__(self, name: str):
-        allow_unencrypted_storage = os.getenv("ALLOW_UNENCRYPTED_STORAGE", "false").lower() == "true"
-        self.persistence_options = TokenCachePersistenceOptions(
-            name=name,
-            allow_unencrypted_storage=allow_unencrypted_storage,
-        )
-        # This is where the session information is stored
-        self.authentication_record_filepath = Path.home() / ".authentication-records" / self.persistence_options.name
-        # This is where the actual credentials are stored
-        self.identity_service_filepath = Path.home() / ".IdentityService" / self.persistence_options.name
-
-    def get_cached_credential(self):
-        """Retrieves a cached credential object if it exists."""
-        authentication_record = self.read_authentication_record()
-
-        if not authentication_record or not self.is_cache_available():
-            return None
-
-        return get_preferred_credential_type()(
-            authentication_record=authentication_record,
-            cache_persistence_options=self.persistence_options,
-        )
-
-    def remove_cached_credential(self):
-        """Removes a cached credential object if it exists."""
-        os.remove(self.authentication_record_filepath)
-        os.remove(self.identity_service_filepath)
-
-    def is_cache_available(self):
-        """Checks whether caching is currently supported."""
-        try:
-            get_preferred_credential_type()(cache_persistence_options=self.persistence_options)
-            return True
-        except ValueError as e:
-            return not str(e).startswith("Cache encryption is impossible")
-
-    def read_authentication_record(self):
-        """Read an authentication record from file."""
-        try:
-            with open(self.authentication_record_filepath, "r") as f:
-                return AuthenticationRecord.deserialize(f.read())
-        except FileNotFoundError:
-            return None
-
-    def write_authentication_record(self, authentication_record: AuthenticationRecord):
-        """Write an authentication record to file."""
-        os.makedirs(self.authentication_record_filepath.parent, exist_ok=True)
-        with open(self.authentication_record_filepath, "w") as f:
-            f.write(authentication_record.serialize())
-
-
-def add_default_scopes(credential: DeviceCodeCredential, scopes: List[str]):
-    """Add default scopes to use when fetching tokens.
-
-    This method overrides `credential.get_token` to use `scopes` when the get token
-    method is called without any arguments. Normally, calling `get_token` without
-    arguments will fail, since at least one scope is required.
-
-    Parameters
-    ----------
-    credential : DeviceCodeCredential
-        The credential to modify.
-    scopes : list, of type str
-        The list of scopes to use by default.
+    Returns the path to the authentication record file.
 
     Returns
     -------
-    None
-        The credential is modified in place.
-
+    Path
+        Path to the authentication record file.
     """
-    credential.get_token = lambda *args, **kwargs: type(credential).get_token(credential, *(args or scopes), **kwargs)
+    home = Path.home()
+    cache_dir = home / ".azure" / "fiberoptics-common"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    return cache_dir / "authentication-record.json"
 
 
-def get_default_credential(name: str = None, scopes: List[str] = [], **kwargs):
-    """Retrieves default credential (using cache if available).
-
-    Parameters
-    ----------
-    name : str, optional
-        Name of the cache, used to isolate credentials for different clients.
-        Caching is disabled if no name is given.
-    scopes : list, of type str, optional
-        The scopes used to authenticate the credential.
-        This argument is added as a default to the `get_token` method.
-    kwargs : dict, optional
-        Keyword arguments passed to the credential constructors.
-        If `client_secret` is present, the `ClientSecretCredential` is used. Otherwise,
-        the `DeviceCodeCredential` is used.
-
+def _load_authentication_record() -> AuthenticationRecord | None:
     """
-    if "tenant_id" not in kwargs:
-        # This is not a secret and can be found on https://www.whatismytenantid.com/
-        kwargs["tenant_id"] = "3aa4a235-b6e2-48d5-9195-7fcf05b459b0"
-
-    # Should handle kwargs containing `client_secret=None`
-    if kwargs.get("client_secret") is not None:
-        credential = ClientSecretCredential(**kwargs)
-    else:
-        cache = CredentialCache(name) if name else None
-        CredentialType = get_preferred_credential_type()
-
-        if cache and cache.is_cache_available():
-            authentication_record = cache.read_authentication_record()
-
-            if authentication_record:
-                logger.info(
-                    f"Reusing cached credentials from \
-{cache.authentication_record_filepath}..."
-                )
-                # Retrieve cached credentials
-                credential = CredentialType(
-                    authentication_record=authentication_record,
-                    cache_persistence_options=cache.persistence_options,
-                )
-            else:
-                # Instantiate credentials with cache options
-                credential = CredentialType(
-                    **kwargs,
-                    cache_persistence_options=cache.persistence_options,
-                )
-                authentication_record = credential.authenticate(scopes=scopes)
-                cache.write_authentication_record(authentication_record)
-        else:
-            credential = CredentialType(**kwargs)
-            # Prompt the user for a device code immediately
-            credential.authenticate(scopes=scopes)
-
-    if len(scopes):
-        add_default_scopes(credential, scopes)
-
-    return credential
-
-
-def get_cached_credential(name: str, scopes: List[str] = []):
-    """Retrieves cached credential if there is one.
-
-    Parameters
-    ----------
-    name : str
-        Name of the cache, used to isolate credentials for different clients.
-    scopes : list, of type str, optional
-        Scopes to use by default in `get_token`.
+    Loads the authentication record from disk if it exists.
 
     Returns
     -------
-    DeviceCodeCredential or None
-        None is returned if no cached credential is found or if caching is not
-        possible due to lack of encyption support.
-
+    AuthenticationRecord | None
+        The loaded authentication record, or None if not found.
     """
-    credential = CredentialCache(name).get_cached_credential()
+    path = _get_authentication_record_path()
+    if not path.exists():
+        return None
 
-    if credential and len(scopes):
-        add_default_scopes(credential, scopes)
+    try:
+        with open(path, "r") as f:
+            return AuthenticationRecord.deserialize(f.read())
+    except Exception as e:
+        logger.debug(f"Failed to load authentication record: {e}")
+        return None
 
-    return credential
 
-
-def remove_cached_credential(name: str):
-    """Removes cached credential by name.
+def _save_authentication_record(record: AuthenticationRecord) -> None:
+    """
+    Saves the authentication record to disk.
 
     Parameters
     ----------
-    name : str
-        Name of previously cached credential.
-
+    record : AuthenticationRecord
+        The authentication record to save.
     """
-    CredentialCache(name).remove_cached_credential()
+    path = _get_authentication_record_path()
+    try:
+        with open(path, "w") as f:
+            f.write(record.serialize())
+    except Exception as e:
+        logger.warning(f"Failed to save authentication record: {e}")
+
+
+def _use_browser_credentials() -> bool:
+    """
+    Checks if browser credentials should be used.
+
+    Returns
+    -------
+    bool
+        True if USE_BROWSER_CREDENTIALS environment variable is set to true.
+    """
+    return os.environ.get("USE_BROWSER_CREDENTIALS", "false").lower() == "true"
+
+
+def _get_browser_credential_config() -> dict[str, Any]:
+    """
+    Returns configuration for browser credential.
+
+    Returns
+    -------
+    dict[str, Any]
+        Configuration dictionary with client_id, tenant_id, and redirect_uri.
+    """
+    return {
+        "client_id": os.environ.get("AZURE_CLIENT_ID", os.environ.get("sp_client_id")),
+        "tenant_id": os.environ.get("AZURE_TENANT_ID", os.environ.get("azure_tenant_id")),
+        "redirect_uri": os.environ.get("REDIRECT_URI", "http://localhost:4000"),
+    }
 
 
 class _BaseCredential(ABC):
@@ -258,7 +161,7 @@ class _BaseCredential(ABC):
         In-memory cache for Azure CLI access tokens, keyed by scopes tuple.
     """
 
-    _credential: ClassVar[Any | None] = None
+    _credential: ClassVar[ChainedTokenCredential | AsyncChainedTokenCredential | None] = None
     _instances: ClassVar[dict[str | None, Self]] = {}
     _azure_cli_access_tokens: ClassVar[dict[tuple[str, ...], AccessToken]] = {}
     _cache_skew: ClassVar[int] = 300
@@ -412,6 +315,51 @@ class _BaseCredential(ABC):
     def _cli_credential_type(cls) -> type[AzureCliCredential] | type[AsyncAzureCliCredential]:
         ...
 
+    @classmethod
+    def _build_browser_credential(cls) -> InteractiveBrowserCredential:
+        """
+        Builds a browser credential with authentication record if available.
+
+        Returns
+        -------
+        InteractiveBrowserCredential
+            The browser credential instance.
+        """
+        config = _get_browser_credential_config()
+
+        if not config["client_id"] or not config["tenant_id"]:
+            raise RuntimeError(
+                "Browser credentials require AZURE_CLIENT_ID and AZURE_TENANT_ID environment variables"
+            )
+
+        auth_record = _load_authentication_record()
+        cache_options = _get_token_cache_persistence_options()
+
+        kwargs = {
+            "client_id": config["client_id"],
+            "tenant_id": config["tenant_id"],
+            "redirect_uri": config["redirect_uri"],
+            "cache_persistence_options": cache_options,
+        }
+
+        if auth_record:
+            kwargs["authentication_record"] = auth_record
+
+        credential = InteractiveBrowserCredential(**kwargs)
+
+        # If no auth record exists, authenticate now and save it
+        if not auth_record and hasattr(credential, "authenticate"):
+            try:
+                # Use a default scope for initial authentication
+                # The actual scope will be used when get_token is called
+                scope = "https://management.azure.com/.default"
+                new_record = credential.authenticate(scopes=[scope])
+                _save_authentication_record(new_record)
+            except Exception as e:
+                logger.warning(f"Failed to authenticate and save record: {e}")
+
+        return credential
+
 
 class AsyncCredential(_BaseCredential, AsyncTokenCredential):
     """
@@ -448,9 +396,10 @@ class AsyncCredential(_BaseCredential, AsyncTokenCredential):
         Returns the cached azure.identity.aio.ChainedTokenCredential instance, creating it if necessary.
 
         The credential chain attempts authentication in the following order:
-        1. Azure CLI
-        2. Workload Identity
-        3. Managed Identity
+        1. Interactive Browser (if USE_BROWSER_CREDENTIALS=true)
+        2. Azure CLI
+        3. Workload Identity
+        4. Managed Identity
 
         Returns
         -------
@@ -462,15 +411,22 @@ class AsyncCredential(_BaseCredential, AsyncTokenCredential):
         RuntimeError
             If no credentials could be instantiated.
         """
+        credentials = []
+
+        # Add browser credential if enabled
+        if _use_browser_credentials():
+            try:
+                credentials.append(cls._build_browser_credential())
+            except Exception as e:
+                logger.debug(f"Failed to instantiate browser credential: {e}")
+
         # Try credentials in a specific order: Azure CLI → Workload Identity → Managed Identity
-        # See: https://github.com/equinor/fiberoptics-common/issues/50
         credential_types = [
             AsyncAzureCliCredential,
             AsyncWorkloadIdentityCredential,
             AsyncManagedIdentityCredential,
         ]
 
-        credentials = []
         for credential_type in credential_types:
             try:
                 credentials.append(credential_type())
@@ -483,7 +439,7 @@ class AsyncCredential(_BaseCredential, AsyncTokenCredential):
         return AsyncChainedTokenCredential(*credentials)
 
     @classmethod
-    def _cli_credential_type(cls) -> type[AzureCliCredential]:
+    def _cli_credential_type(cls) -> type[AsyncAzureCliCredential]:
         return AsyncAzureCliCredential
 
 
@@ -517,28 +473,52 @@ class Credential(_BaseCredential, TokenCredential):
         return self._finalize_token(credential, scopes_tuple, token)
 
     @classmethod
-    def _build_credential(cls) -> DefaultAzureCredential:
+    def _build_credential(cls) -> ChainedTokenCredential:
         """
-        Returns the cached DefaultAzureCredential instance, creating it if necessary.
+        Returns the cached credential chain instance, creating it if necessary.
+
+        The credential chain attempts authentication in the following order:
+        1. Interactive Browser (if USE_BROWSER_CREDENTIALS=true)
+        2. Azure CLI
+        3. Workload Identity
+        4. Managed Identity
 
         Returns
         -------
-        DefaultAzureCredential
-            The credential instance with selected flows excluded.
+        ChainedTokenCredential
+            The credential instance with the configured chain.
 
         Raises
         ------
-        NoCredentialsAvailable
-            If no credentials are available.
+        RuntimeError
+            If no credentials could be instantiated.
         """
-        options = {
-            "exclude_developer_cli_credential": True,
-            "exclude_environment_credential": True,
-            "exclude_powershell_credential": True,
-            "exclude_visual_studio_code_credential": True,
-            "exclude_interactive_browser_credential": True,
-        }
-        return DefaultAzureCredential(**options)
+        credentials = []
+
+        # Add browser credential if enabled
+        if _use_browser_credentials():
+            try:
+                credentials.append(cls._build_browser_credential())
+            except Exception as e:
+                logger.debug(f"Failed to instantiate browser credential: {e}")
+
+        # # Add DefaultAzureCredential with selected flows excluded
+        # try:
+        #     options = {
+        #         "exclude_developer_cli_credential": True,
+        #         "exclude_environment_credential": True,
+        #         "exclude_powershell_credential": True,
+        #         "exclude_visual_studio_code_credential": True,
+        #         "exclude_interactive_browser_credential": True,
+        #     }
+        #     credentials.append(DefaultAzureCredential(**options))
+        # except Exception as e:
+        #     logger.debug(f"Failed to instantiate DefaultAzureCredential: {e}")
+
+        if not credentials:
+            raise RuntimeError("No Azure credentials could be instantiated")
+
+        return ChainedTokenCredential(*credentials)
 
     @classmethod
     def _cli_credential_type(cls) -> type[AzureCliCredential]:
