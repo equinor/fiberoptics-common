@@ -159,12 +159,15 @@ class _BaseCredential(ABC):
         Dictionary of singleton instances keyed by resource_id.
     _azure_cli_access_tokens : ClassVar[dict[tuple[str], AccessToken]]
         In-memory cache for Azure CLI access tokens, keyed by scopes tuple.
+    _resource_id : ClassVar[str | None]
+        The resource ID used for building credentials (specific to each subclass).
     """
 
     _credential: ClassVar[ChainedTokenCredential | AsyncChainedTokenCredential | None] = None
     _instances: ClassVar[dict[str | None, Self]] = {}
     _azure_cli_access_tokens: ClassVar[dict[tuple[str, ...], AccessToken]] = {}
     _cache_skew: ClassVar[int] = 300
+    _resource_id: ClassVar[str | None] = None
 
     def __new__(cls, resource_id: str | None = None):
         """
@@ -183,6 +186,8 @@ class _BaseCredential(ABC):
         if resource_id not in cls._instances:
             instance = super().__new__(cls)
             cls._instances[resource_id] = instance
+            # Store resource_id at class level for this singleton instance
+            cls._resource_id = resource_id
         return cls._instances[resource_id]
 
     def __init__(self, resource_id: str | None = None):
@@ -211,6 +216,7 @@ class _BaseCredential(ABC):
         cls._credential = None
         cls._instances = {}
         cls._azure_cli_access_tokens = {}
+        cls._resource_id = None
 
     def _build_scopes_tuple(self, scopes: tuple[Any, ...]) -> tuple[str, ...]:
         """
@@ -350,9 +356,11 @@ class _BaseCredential(ABC):
         # If no auth record exists, authenticate now and save it
         if not auth_record and hasattr(credential, "authenticate"):
             try:
-                # Use a default scope for initial authentication
-                # The actual scope will be used when get_token is called
-                scope = "https://management.azure.com/.default"
+                # Use resource_id scope if available, otherwise default scope
+                if cls._resource_id:
+                    scope = f"{cls._resource_id}/.default"
+                else:
+                    scope = "https://management.azure.com/.default"
                 new_record = credential.authenticate(scopes=[scope])
                 _save_authentication_record(new_record)
             except Exception as e:
