@@ -191,7 +191,7 @@ def _create_browser_credential(
             preferred_scope = [scope] if scope else None
             new_record = credential.authenticate(scopes=preferred_scope)
             _save_authentication_record(new_record, resource_id)
-        except Exception as exc:  # noqa: BLE001
+        except BaseException as exc:
             logger.warning(f"Failed to authenticate and save record: {exc}")
 
     return credential
@@ -319,7 +319,7 @@ class AsyncCredential(_BaseCredential, AsyncTokenCredential):
                         persist_auth_record=False,
                     )
                 )
-            except Exception as exc:  # noqa: BLE001
+            except BaseException as exc:
                 logger.debug(f"Failed to instantiate browser credential: {exc}")
 
         for credential_type in (
@@ -329,7 +329,7 @@ class AsyncCredential(_BaseCredential, AsyncTokenCredential):
         ):
             try:
                 credentials.append(credential_type())
-            except Exception as exc:  # noqa: BLE001
+            except BaseException as exc:
                 logger.debug(f"Failed to instantiate {credential_type.__name__}: {exc}")
 
         if not credentials:
@@ -369,7 +369,7 @@ class Credential(_BaseCredential, TokenCredential):
                         persist_auth_record=True,
                     )
                 )
-            except Exception as exc:  # noqa: BLE001
+            except BaseException as exc:
                 logger.debug(f"Failed to instantiate browser credential: {exc}")
 
         try:
@@ -381,7 +381,7 @@ class Credential(_BaseCredential, TokenCredential):
                 "exclude_interactive_browser_credential": True,
             }
             credentials.append(DefaultAzureCredential(**options))
-        except Exception as exc:  # noqa: BLE001
+        except BaseException as exc:
             logger.debug(f"Failed to instantiate DefaultAzureCredential: {exc}")
 
         if not credentials:
