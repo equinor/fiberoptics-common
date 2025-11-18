@@ -109,7 +109,9 @@ class InteractiveBrowserCredentialBase(ABC):
         }
         config = get_browser_credential_config(overrides)
         if not config["client_id"] or not config["tenant_id"]:
-            raise RuntimeError("Browser credentials require AZURE_CLIENT_ID and AZURE_TENANT_ID environment variables")
+            raise RuntimeError(
+                "Browser credentials require both client_id and tenant_id, which can be provided either via environment variables (AZURE_CLIENT_ID or sp_client_id and AZURE_TENANT_ID or azure_tenant_id) or as constructor parameters."
+            )
 
         auth_record = load_authentication_record(resource_id)
         cache_options = get_token_cache_persistence_options()

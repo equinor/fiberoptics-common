@@ -23,5 +23,3 @@ def get_default_credential(name: str = None, scopes: list[str] | None = None, **
         kwargs["tenant_id"] = "3aa4a235-b6e2-48d5-9195-7fcf05b459b0"
 
     return Credential(*scopes, **kwargs)
-
-
