@@ -9,7 +9,7 @@ from azure.core.credentials import AccessToken, TokenCredential
 from azure.identity import ChainedTokenCredential, DefaultAzureCredential
 
 from ._base import BaseCredential
-from ._browser import InteractiveBrowserCredential, use_browser_credentials
+from ._browser import SyncInteractiveBrowserCredential, use_browser_credentials
 
 logger = logging.getLogger("fiberoptics.common")
 
@@ -31,7 +31,7 @@ class Credential(BaseCredential, TokenCredential):
         if use_browser_credentials():
             try:
                 credentials.append(
-                    InteractiveBrowserCredential(
+                    SyncInteractiveBrowserCredential(
                         resource_id=self.resource_id,
                         scope=self.scope,
                         persist_auth_record=True,

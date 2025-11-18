@@ -121,7 +121,7 @@ class InteractiveBrowserCredentialBase(ABC):
         return self._credential
 
 
-class InteractiveBrowserCredential(InteractiveBrowserCredentialBase, TokenCredential):
+class SyncInteractiveBrowserCredential(InteractiveBrowserCredentialBase, TokenCredential):
     def __init__(self, *, resource_id: str | None, scope: str | None, persist_auth_record: bool):
         super().__init__(resource_id=resource_id, scope=scope, persist_auth_record=persist_auth_record)
 
