@@ -4,18 +4,15 @@ import logging
 import os
 from pathlib import Path
 import time
-from typing import List
 
 from abc import ABC, abstractmethod
 
-from typing import Any, ClassVar, Self, TypeAlias
+from typing import Any, ClassVar, TypeAlias
 
 from azure.identity import (
     AuthenticationRecord,
     AzureCliCredential,
-    ClientSecretCredential,
     DefaultAzureCredential,
-    DeviceCodeCredential,
     InteractiveBrowserCredential,
     TokenCachePersistenceOptions,
     ChainedTokenCredential,
@@ -165,51 +162,47 @@ def _get_browser_credential_config() -> dict[str, Any]:
     }
 
 
+def _create_browser_credential(
+    *,
+    resource_id: str | None,
+    scope: str | None,
+    persist_auth_record: bool,
+) -> Any:
+    config = _get_browser_credential_config()
+    if not config["client_id"] or not config["tenant_id"]:
+        raise RuntimeError("Browser credentials require AZURE_CLIENT_ID and AZURE_TENANT_ID environment variables")
+
+    auth_record = _load_authentication_record(resource_id)
+    cache_options = _get_token_cache_persistence_options()
+
+    kwargs: dict[str, Any] = {
+        "client_id": config["client_id"],
+        "tenant_id": config["tenant_id"],
+        "redirect_uri": config["redirect_uri"],
+        "cache_persistence_options": cache_options,
+    }
+    if auth_record:
+        kwargs["authentication_record"] = auth_record
+
+    credential = InteractiveBrowserCredential(**kwargs)
+
+    if persist_auth_record and not auth_record and hasattr(credential, "authenticate"):
+        try:
+            preferred_scope = [scope] if scope else None
+            new_record = credential.authenticate(scopes=preferred_scope)
+            _save_authentication_record(new_record, resource_id)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(f"Failed to authenticate and save record: {exc}")
+
+    return credential
+
+
 class _BaseCredential(ABC):
     """
-    Base class for Azure credential implementations providing shared singleton and caching logic.
-
-    This class implements the singleton pattern per resource_id and provides shared
-    token caching functionality for Azure CLI credentials.
-
-    Attributes
-    ----------
-    _credential : ChainedTokenCredential | AsyncChainedTokenCredential | None
-        Cached credential instance (specific to each subclass).
-    _instances : ClassVar[dict[str | None, Self]]
-        Dictionary of singleton instances keyed by resource_id.
-    _azure_cli_access_tokens : ClassVar[dict[tuple[str], AccessToken]]
-        In-memory cache for Azure CLI access tokens, keyed by scopes tuple.
-    _resource_id : ClassVar[str | None]
-        The resource ID used for building credentials (specific to each subclass).
+    Base class for Azure credential implementations providing shared caching logic.
     """
 
-    _credential: ClassVar[ChainedTokenCredential | AsyncChainedTokenCredential | None] = None
-    _instances: ClassVar[dict[str | None, Self]] = {}
-    _azure_cli_access_tokens: ClassVar[dict[tuple[str, ...], AccessToken]] = {}
     _cache_skew: ClassVar[int] = 300
-    _resource_id: ClassVar[str | None] = None
-
-    def __new__(cls, resource_id: str | None = None):
-        """
-        Returns a singleton instance for the given resource_id.
-
-        Parameters
-        ----------
-        resource_id : str | None
-            The resource ID for which to create or retrieve the credential instance.
-
-        Returns
-        -------
-        Self
-            The singleton credential instance for the specified resource_id.
-        """
-        if resource_id not in cls._instances:
-            instance = super().__new__(cls)
-            cls._instances[resource_id] = instance
-            # Store resource_id at class level for this singleton instance
-            cls._resource_id = resource_id
-        return cls._instances[resource_id]
 
     def __init__(self, resource_id: str | None = None):
         """
@@ -220,24 +213,14 @@ class _BaseCredential(ABC):
         resource_id : str | None
             The resource ID to use for scoping the token, if provided.
         """
-        if not hasattr(self, "initialized"):
-            self.scope = f"{resource_id}/.default" if resource_id else None
-            self.initialized = True
+        self.resource_id = resource_id
+        self.scope = f"{resource_id}/.default" if resource_id else None
+        self._azure_cli_access_tokens: dict[tuple[str, ...], AccessToken] = {}
+        self._credential = self._build_credential()
 
-    def __init_subclass__(cls, **kwargs: Any) -> None:
-        """
-        Initializes subclass-specific class variables to ensure cache isolation.
-
-        Parameters
-        ----------
-        **kwargs : Any
-            Additional keyword arguments passed to the superclass.
-        """
-        super().__init_subclass__(**kwargs)
-        cls._credential = None
-        cls._instances = {}
-        cls._azure_cli_access_tokens = {}
-        cls._resource_id = None
+    @property
+    def credential(self) -> ChainedTokenCredentialAlias:
+        return self._credential
 
     def _build_scopes_tuple(self, scopes: tuple[Any, ...]) -> tuple[str, ...]:
         """
@@ -255,7 +238,7 @@ class _BaseCredential(ABC):
         """
         return tuple([self.scope] if len(scopes) == 0 and self.scope else scopes)
 
-    def _get_cached_token(self, credential: ChainedTokenCredentialAlias, scopes_tuple: tuple[str, ...]) -> AccessToken | None:
+    def _get_cached_token(self, scopes_tuple: tuple[str, ...]) -> AccessToken | None:
         """
         Checks if a cached Azure CLI token should be used.
 
@@ -276,19 +259,14 @@ class _BaseCredential(ABC):
         AccessToken | None
             The cached token if available and valid, otherwise None.
         """
-
-        cli_type = self._cli_credential_type()
-
-        successful = getattr(credential, "_successful_credential", None)
-        if cli_type and successful and isinstance(successful, cli_type):
+        successful = getattr(self.credential, "_successful_credential", None)
+        if successful and isinstance(successful, (AzureCliCredential, AsyncAzureCliCredential)):
             token = self._azure_cli_access_tokens.get(scopes_tuple)
             if token is not None and int(time.time()) < token.expires_on - self._cache_skew:
                 return token
         return None
 
-    def _store_cached_token(
-        self, credential: ChainedTokenCredentialAlias, scopes_tuple: tuple[Any, ...], token: AccessToken
-    ) -> None:
+    def _store_cached_token(self, scopes_tuple: tuple[Any, ...], token: AccessToken) -> None:
         """
         Caches the token if the successful credential is Azure CLI.
 
@@ -301,251 +279,112 @@ class _BaseCredential(ABC):
         token : AccessToken
             The token to cache.
         """
-        cli_type = self._cli_credential_type()
-        successful = getattr(credential, "_successful_credential", None)
-        if cli_type and successful and isinstance(successful, cli_type):
+        successful = getattr(self.credential, "_successful_credential", None)
+        if successful and isinstance(successful, (AzureCliCredential, AsyncAzureCliCredential)):
             self._azure_cli_access_tokens[scopes_tuple] = token
 
-    def _prepare_token_request(
-        self, scopes: tuple[Any, ...]
-    ) -> tuple[ChainedTokenCredentialAlias, tuple[str, ...], AccessToken | None]:
-        credential = type(self).get_credential()
-        scopes_tuple = self._build_scopes_tuple(scopes)
-        return credential, scopes_tuple, self._get_cached_token(credential, scopes_tuple)
-
-    def _finalize_token(
-        self,
-        credential: ChainedTokenCredentialAlias,
-        scopes_tuple: tuple[str, ...],
-        token: AccessToken,
-    ) -> AccessToken:
-        self._store_cached_token(credential, scopes_tuple, token)
-        return token
-
-    @classmethod
-    def get_credential(cls) -> ChainedTokenCredentialAlias:
-        return cls._ensure_credential()
-
-    @classmethod
-    def _ensure_credential(cls) -> ChainedTokenCredentialAlias:
-        if cls._credential is None:
-            cls._credential = cls._build_credential()
-        return cls._credential
-
-    @classmethod
     @abstractmethod
-    def _build_credential(cls) -> ChainedTokenCredentialAlias:
+    def _build_credential(self) -> ChainedTokenCredentialAlias:
         ...
-
-    @classmethod
-    @abstractmethod
-    def _cli_credential_type(cls) -> type[AzureCliCredential] | type[AsyncAzureCliCredential]:
-        ...
-
-    @classmethod
-    def _build_browser_credential(cls) -> InteractiveBrowserCredential:
-        """
-        Builds a browser credential with authentication record if available.
-
-        Returns
-        -------
-        InteractiveBrowserCredential
-            The browser credential instance.
-        """
-        config = _get_browser_credential_config()
-
-        if not config["client_id"] or not config["tenant_id"]:
-            raise RuntimeError(
-                "Browser credentials require AZURE_CLIENT_ID and AZURE_TENANT_ID environment variables"
-            )
-
-        auth_record = _load_authentication_record(cls._resource_id)
-        cache_options = _get_token_cache_persistence_options()
-
-        kwargs = {
-            "client_id": config["client_id"],
-            "tenant_id": config["tenant_id"],
-            "redirect_uri": config["redirect_uri"],
-            "cache_persistence_options": cache_options,
-        }
-
-        if auth_record:
-            kwargs["authentication_record"] = auth_record
-
-        credential = InteractiveBrowserCredential(**kwargs)
-
-        # If no auth record exists, authenticate now and save it
-        if not auth_record and hasattr(credential, "authenticate"):
-            try:
-                # Use resource_id scope if available, otherwise default scope
-                scopes = [f"{cls._resource_id}/.default"] if cls._resource_id else []
-                new_record = credential.authenticate(scopes=scopes)
-                _save_authentication_record(new_record, cls._resource_id)
-            except Exception as e:
-                logger.warning(f"Failed to authenticate and save record: {e}")
-
-        return credential
 
 
 class AsyncCredential(_BaseCredential, AsyncTokenCredential):
     """
     Azure credential class supporting async authentication. For the sync version, see Credential.
 
-    This class provides a singleton credential instance per resource ID, using
-    a chained credential that tries Azure CLI, Workload Identity, and Managed Identity
-    in order. It implements the async TokenCredential protocol for use with Azure SDK clients.
-
-    Methods
-    -------
-    async get_token(self, *scopes: Any, **kwargs: Any) -> AccessToken
-        Asynchronously acquires an access token for the specified scopes.
-    @classmethod
-    get_credential(cls) -> AsyncChainedTokenCredential
-        Returns the cached AsyncChainedTokenCredential instance, creating it if necessary.
+    This class provides a credential instance, using a chained credential that tries 
+    Azure CLI, Workload Identity, Managed Identity and optionally Interactive Browser flow.
+    It implements the async TokenCredential protocol for use with Azure SDK clients.
     """
 
     async def get_token(self, *scopes: Any, **kwargs: Any) -> AccessToken:
-        """
-        Asynchronously acquires an access token for the specified scopes.
-        If the underlying credential is AzureCliCredential, applies in-memory caching.
-        """
-        credential, scopes_tuple, cached = self._prepare_token_request(scopes)
+        scopes_tuple = self._build_scopes_tuple(scopes)
+        cached = self._get_cached_token(scopes_tuple)
         if cached:
             return cached
 
-        token = await credential.get_token(*scopes_tuple, **kwargs)
-        return self._finalize_token(credential, scopes_tuple, token)
+        token = await self.credential.get_token(*scopes_tuple, **kwargs)
+        self._store_cached_token(scopes_tuple, token)
+        return token
 
-    @classmethod
-    def _build_credential(cls) -> AsyncChainedTokenCredential:
-        """
-        Returns the cached azure.identity.aio.ChainedTokenCredential instance, creating it if necessary.
+    def _build_credential(self) -> AsyncChainedTokenCredential:
+        credentials: list[AsyncTokenCredential] = []
 
-        The credential chain attempts authentication in the following order:
-        1. Interactive Browser (if USE_BROWSER_CREDENTIALS=true)
-        2. Azure CLI
-        3. Workload Identity
-        4. Managed Identity
-
-        Returns
-        -------
-        azure.identity.aio.ChainedTokenCredential
-            The credential instance with the configured chain.
-
-        Raises
-        ------
-        RuntimeError
-            If no credentials could be instantiated.
-        """
-        credentials = []
-
-        # Add browser credential if enabled
         if _use_browser_credentials():
             try:
-                credentials.append(cls._build_browser_credential())
-            except Exception as e:
-                logger.debug(f"Failed to instantiate browser credential: {e}")
+                credentials.append(
+                    _create_browser_credential(
+                        resource_id=self.resource_id,
+                        scope=self.scope,
+                        persist_auth_record=False,
+                    )
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.debug(f"Failed to instantiate browser credential: {exc}")
 
-        # Try credentials in a specific order: Azure CLI → Workload Identity → Managed Identity
-        credential_types = [
+        for credential_type in (
             AsyncAzureCliCredential,
             AsyncWorkloadIdentityCredential,
             AsyncManagedIdentityCredential,
-        ]
-
-        for credential_type in credential_types:
+        ):
             try:
                 credentials.append(credential_type())
-            except Exception as e:
-                logger.debug(f"Failed to instantiate {credential_type.__name__}: {e}")
+            except Exception as exc:  # noqa: BLE001
+                logger.debug(f"Failed to instantiate {credential_type.__name__}: {exc}")
 
         if not credentials:
             raise RuntimeError("No Azure credentials could be instantiated")
 
         return AsyncChainedTokenCredential(*credentials)
 
-    @classmethod
-    def _cli_credential_type(cls) -> type[AsyncAzureCliCredential]:
-        return AsyncAzureCliCredential
-
 
 class Credential(_BaseCredential, TokenCredential):
     """
     Azure credential class supporting sync authentication. For the async version, see AsyncCredential.
 
-    This class provides a singleton credential instance per resource ID, using
-    a chained credential that tries Azure CLI, Workload Identity, and Managed Identity
-    in order. It implements the sync TokenCredential protocol for use with Azure SDK clients.
-
-    Methods
-    -------
-    get_token(self, *scopes: Any, **kwargs: Any) -> AccessToken
-        Synchronously acquires an access token for the specified scopes.
-    @classmethod
-    get_credential(cls) -> DefaultAzureCredential
-        Returns the cached DefaultAzureCredential instance, creating it if necessary.
+    This class provides a credential instance, using a chained credential that tries 
+    Azure CLI, Workload Identity, Managed Identity and optionally Interactive Browser flow.
+    It implements the sync TokenCredential protocol for use with Azure SDK clients.
     """
 
     def get_token(self, *scopes: Any, **kwargs: Any) -> AccessToken:
-        """
-        Synchronously acquires an access token for the specified scopes.
-        If the underlying credential is AzureCliCredential, applies in-memory caching.
-        """
-        credential, scopes_tuple, cached = self._prepare_token_request(scopes)
+        scopes_tuple = self._build_scopes_tuple(scopes)
+        cached = self._get_cached_token(scopes_tuple)
         if cached:
             return cached
 
-        token = credential.get_token(*scopes_tuple, **kwargs)
-        return self._finalize_token(credential, scopes_tuple, token)
+        token = self.credential.get_token(*scopes_tuple, **kwargs)
+        self._store_cached_token(scopes_tuple, token)
+        return token
 
-    @classmethod
-    def _build_credential(cls) -> ChainedTokenCredential:
-        """
-        Returns the cached credential chain instance, creating it if necessary.
+    def _build_credential(self) -> ChainedTokenCredential:
+        credentials: list[TokenCredential] = []
 
-        The credential chain attempts authentication in the following order:
-        1. Interactive Browser (if USE_BROWSER_CREDENTIALS=true)
-        2. Azure CLI
-        3. Workload Identity
-        4. Managed Identity
-
-        Returns
-        -------
-        ChainedTokenCredential
-            The credential instance with the configured chain.
-
-        Raises
-        ------
-        RuntimeError
-            If no credentials could be instantiated.
-        """
-        credentials = []
-
-        # Add browser credential if enabled
         if _use_browser_credentials():
             try:
-                credentials.append(cls._build_browser_credential())
-            except Exception as e:
-                logger.debug(f"Failed to instantiate browser credential: {e}")
+                credentials.append(
+                    _create_browser_credential(
+                        resource_id=self.resource_id,
+                        scope=self.scope,
+                        persist_auth_record=True,
+                    )
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.debug(f"Failed to instantiate browser credential: {exc}")
 
-        # # Add DefaultAzureCredential with selected flows excluded
-        # try:
-        #     options = {
-        #         "exclude_developer_cli_credential": True,
-        #         "exclude_environment_credential": True,
-        #         "exclude_powershell_credential": True,
-        #         "exclude_visual_studio_code_credential": True,
-        #         "exclude_interactive_browser_credential": True,
-        #     }
-        #     credentials.append(DefaultAzureCredential(**options))
-        # except Exception as e:
-        #     logger.debug(f"Failed to instantiate DefaultAzureCredential: {e}")
+        try:
+            options = {
+                "exclude_developer_cli_credential": True,
+                "exclude_environment_credential": True,
+                "exclude_powershell_credential": True,
+                "exclude_visual_studio_code_credential": True,
+                "exclude_interactive_browser_credential": True,
+            }
+            credentials.append(DefaultAzureCredential(**options))
+        except Exception as exc:  # noqa: BLE001
+            logger.debug(f"Failed to instantiate DefaultAzureCredential: {exc}")
 
         if not credentials:
             raise RuntimeError("No Azure credentials could be instantiated")
 
         return ChainedTokenCredential(*credentials)
-
-    @classmethod
-    def _cli_credential_type(cls) -> type[AzureCliCredential]:
-        return AzureCliCredential
