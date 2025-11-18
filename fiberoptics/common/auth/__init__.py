@@ -63,9 +63,14 @@ def _get_token_cache_persistence_options() -> TokenCachePersistenceOptions:
     return options
 
 
-def _get_authentication_record_path() -> Path:
+def _get_authentication_record_path(resource_id: str | None = None) -> Path:
     """
     Returns the path to the authentication record file.
+
+    Parameters
+    ----------
+    resource_id : str | None
+        Optional resource ID to create a unique authentication record per resource.
 
     Returns
     -------
@@ -75,19 +80,33 @@ def _get_authentication_record_path() -> Path:
     home = Path.home()
     cache_dir = home / ".azure" / "fiberoptics-common"
     cache_dir.mkdir(parents=True, exist_ok=True)
-    return cache_dir / "authentication-record.json"
+    
+    # Create a safe filename from resource_id
+    if resource_id:
+        # Replace non-filesystem-safe characters with underscores
+        safe_resource_id = "".join(c if c.isalnum() or c in ('-', '_') else '_' for c in resource_id)
+        filename = f"authentication-record-{safe_resource_id}.json"
+    else:
+        filename = "authentication-record-default.json"
+    
+    return cache_dir / filename
 
 
-def _load_authentication_record() -> AuthenticationRecord | None:
+def _load_authentication_record(resource_id: str | None = None) -> AuthenticationRecord | None:
     """
     Loads the authentication record from disk if it exists.
+
+    Parameters
+    ----------
+    resource_id : str | None
+        Optional resource ID to load the corresponding authentication record.
 
     Returns
     -------
     AuthenticationRecord | None
         The loaded authentication record, or None if not found.
     """
-    path = _get_authentication_record_path()
+    path = _get_authentication_record_path(resource_id)
     if not path.exists():
         return None
 
@@ -99,7 +118,7 @@ def _load_authentication_record() -> AuthenticationRecord | None:
         return None
 
 
-def _save_authentication_record(record: AuthenticationRecord) -> None:
+def _save_authentication_record(record: AuthenticationRecord, resource_id: str | None = None) -> None:
     """
     Saves the authentication record to disk.
 
@@ -107,8 +126,10 @@ def _save_authentication_record(record: AuthenticationRecord) -> None:
     ----------
     record : AuthenticationRecord
         The authentication record to save.
+    resource_id : str | None
+        Optional resource ID to save the authentication record for a specific resource.
     """
-    path = _get_authentication_record_path()
+    path = _get_authentication_record_path(resource_id)
     try:
         with open(path, "w") as f:
             f.write(record.serialize())
@@ -338,7 +359,7 @@ class _BaseCredential(ABC):
                 "Browser credentials require AZURE_CLIENT_ID and AZURE_TENANT_ID environment variables"
             )
 
-        auth_record = _load_authentication_record()
+        auth_record = _load_authentication_record(cls._resource_id)
         cache_options = _get_token_cache_persistence_options()
 
         kwargs = {
@@ -357,12 +378,9 @@ class _BaseCredential(ABC):
         if not auth_record and hasattr(credential, "authenticate"):
             try:
                 # Use resource_id scope if available, otherwise default scope
-                if cls._resource_id:
-                    scope = f"{cls._resource_id}/.default"
-                else:
-                    scope = "https://management.azure.com/.default"
-                new_record = credential.authenticate(scopes=[scope])
-                _save_authentication_record(new_record)
+                scopes = [f"{cls._resource_id}/.default"] if cls._resource_id else []
+                new_record = credential.authenticate(scopes=scopes)
+                _save_authentication_record(new_record, cls._resource_id)
             except Exception as e:
                 logger.warning(f"Failed to authenticate and save record: {e}")
 
