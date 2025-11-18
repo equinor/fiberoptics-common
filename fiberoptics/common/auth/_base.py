@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 import time
 from abc import ABC, abstractmethod
 from typing import Any, ClassVar
@@ -13,8 +12,6 @@ from azure.identity.aio import (
     AzureCliCredential as AsyncAzureCliCredential,
     ChainedTokenCredential as AsyncChainedTokenCredential,
 )
-
-logger = logging.getLogger("fiberoptics.common")
 
 
 class BaseCredential(ABC):
