@@ -44,7 +44,7 @@ class AsyncCredential(BaseCredential, AsyncTokenCredential):
                     AsyncInteractiveBrowserCredential(
                         resource_id=self.resource_id,
                         scope=self.scope,
-                        persist_auth_record=False,
+                        persist_auth_record=True,
                         **browser_kwargs,
                     )
                 )
