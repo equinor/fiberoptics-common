@@ -48,11 +48,11 @@ class BaseCredential(ABC):
         return {
             key: value
             for key, value in (
-                ("client_id", self._kwargs.pop("client_id", None)),
-                ("tenant_id", self._kwargs.pop("tenant_id", None)),
+                ("client_id", self._kwargs.get("client_id", None)),
+                ("tenant_id", self._kwargs.get("tenant_id", None)),
                 (
                     "redirect_uri",
-                    self._kwargs.pop("redirect_uri", None),
+                    self._kwargs.get("redirect_uri", None),
                 ),
             )
             if value is not None
