@@ -22,6 +22,3 @@ def get_default_credential(name: str = None, scopes: list[str] = [], **kwargs):
     return Credential(*scopes, **kwargs)
 
 
-# def get_default_credential():
-
-#     return Credential
