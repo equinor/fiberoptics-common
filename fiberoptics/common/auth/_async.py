@@ -52,9 +52,9 @@ class AsyncCredential(BaseCredential, AsyncTokenCredential):
                 logger.debug(f"Failed to instantiate browser credential: {exc}")
 
         for credential_type in (
-            AsyncAzureCliCredential,
             AsyncWorkloadIdentityCredential,
             AsyncManagedIdentityCredential,
+            AsyncAzureCliCredential,
         ):
             try:
                 credentials.append(credential_type())

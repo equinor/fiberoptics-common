@@ -51,9 +51,9 @@ class Credential(BaseCredential, TokenCredential):
                 logger.debug(f"Failed to instantiate browser credential: {exc}")
 
         for credential_type in (
-            AzureCliCredential,
             WorkloadIdentityCredential,
             ManagedIdentityCredential,
+            AzureCliCredential,
         ):
             try:
                 credentials.append(credential_type())
