@@ -57,6 +57,69 @@ jobs:
           source $VENV
           poetry run ruff check .
       #---------------------------#
+      # Check version consistency #
+      #---------------------------#
+      - name: Check version consistency
+        run: |
+          python3 - <<'EOF'
+          import tomllib, re, sys
+
+          with open("pyproject.toml", "rb") as f:
+              data = tomllib.load(f)
+
+          source_version = data["tool"]["bumpversion"]["current_version"]
+          poetry_version = data["tool"]["poetry"]["version"]
+
+          with open("fiberoptics/common/__init__.py") as f:
+              content = f.read()
+          match = re.search(r'__version__ = "([^"]+)"', content)
+          init_version = match.group(1) if match else None
+
+          errors = []
+          if poetry_version != source_version:
+              errors.append(
+                  f"pyproject.toml [tool.poetry] version '{poetry_version}' "
+                  f"!= [tool.bumpversion] current_version '{source_version}'"
+              )
+          if init_version != source_version:
+              errors.append(
+                  f"fiberoptics/common/__init__.py __version__ '{init_version}' "
+                  f"!= [tool.bumpversion] current_version '{source_version}'"
+              )
+
+          if errors:
+              print("Version is inconsistent:")
+              for e in errors:
+                  print(f"  - {e}")
+              print("Use bump-my-version to update the version number.")
+              sys.exit(1)
+
+          print(f"Version is consistent across all files: {source_version}")
+          EOF
+      #---------------------------#
+      # Check version bumped      #
+      #---------------------------#
+      - name: Verify version has been updated since main
+        run: |
+          python3 - <<'EOF'
+          import tomllib, subprocess, sys
+
+          with open("pyproject.toml", "rb") as f:
+              current = tomllib.load(f)["tool"]["bumpversion"]["current_version"]
+
+          raw = subprocess.check_output(["git", "show", "origin/main:pyproject.toml"])
+          main = tomllib.loads(raw.decode())["tool"]["bumpversion"]["current_version"]
+
+          print(f"Version on main:    {main}")
+          print(f"Version on branch:  {current}")
+
+          if current == main:
+              print("Version has not been updated. Use bump-my-version to increment it.")
+              sys.exit(1)
+
+          print(f"Version has been updated: {main} -> {current}")
+          EOF
+      #---------------------------#
       # Test                      #
       #---------------------------#
       - name: Testing source code
