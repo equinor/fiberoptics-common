@@ -12,11 +12,12 @@ from azure.identity.aio import ChainedTokenCredential as AsyncChainedTokenCreden
 
 
 class BaseCredential(ABC):
-    _cache_skew: ClassVar[int] = 300
+    _default_cache_skew: ClassVar[int] = 300
 
     def __init__(self, resource_id: str | None = None, **kwargs: Any):
         self.resource_id = resource_id
         self.scope = f"{resource_id}/.default" if resource_id else None
+        self._cache_skew = kwargs.pop("cache_skew", self._default_cache_skew)
         self._kwargs = kwargs
         self._cached_access_tokens: dict[tuple, AccessToken] = {}
         self._credential = self.build_credential()
