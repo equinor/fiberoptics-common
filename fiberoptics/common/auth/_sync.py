@@ -6,7 +6,12 @@ import logging
 from typing import Any
 
 from azure.core.credentials import AccessToken, TokenCredential
-from azure.identity import ChainedTokenCredential, DefaultAzureCredential
+from azure.identity import (
+    AzureCliCredential,
+    ChainedTokenCredential,
+    ManagedIdentityCredential,
+    WorkloadIdentityCredential,
+)
 
 from ._base import BaseCredential
 from ._browser import SyncInteractiveBrowserCredential, use_browser_credentials
@@ -20,12 +25,12 @@ class Credential(BaseCredential, TokenCredential):
 
     def get_token(self, *scopes: Any, **kwargs: Any) -> AccessToken:
         scopes_tuple = self.build_scopes_tuple(scopes)
-        cached = self.get_cached_token(scopes_tuple)
+        cached = self.get_cached_token(scopes_tuple, kwargs)
         if cached:
             return cached
 
         token = self.credential.get_token(*scopes_tuple, **kwargs)
-        self.store_cached_token(scopes_tuple, token)
+        self.store_cached_token(scopes_tuple, kwargs, token)
         return token
 
     def build_credential(self) -> ChainedTokenCredential:
@@ -45,17 +50,15 @@ class Credential(BaseCredential, TokenCredential):
             except BaseException as exc:
                 logger.debug(f"Failed to instantiate browser credential: {exc}")
 
-        try:
-            options = {
-                "exclude_developer_cli_credential": True,
-                "exclude_environment_credential": True,
-                "exclude_powershell_credential": True,
-                "exclude_visual_studio_code_credential": True,
-                "exclude_interactive_browser_credential": True,
-            }
-            credentials.append(DefaultAzureCredential(**options))
-        except BaseException as exc:
-            logger.debug(f"Failed to instantiate DefaultAzureCredential: {exc}")
+        for credential_type in (
+            WorkloadIdentityCredential,
+            ManagedIdentityCredential,
+            AzureCliCredential,
+        ):
+            try:
+                credentials.append(credential_type())
+            except BaseException as exc:
+                logger.debug(f"Failed to instantiate {credential_type.__name__}: {exc}")
 
         if not credentials:
             raise RuntimeError("No Azure credentials could be instantiated")

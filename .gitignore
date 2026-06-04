@@ -178,6 +178,9 @@ cython_debug/
 ### PyCharm config files ###
 .idea
 
+### MacOS ###
+.DS_Store
+
 # Support for Project snippet scope
 
 # End of https://www.toptal.com/developers/gitignore/api/python,visualstudiocode

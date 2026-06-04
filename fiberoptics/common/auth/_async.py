@@ -26,12 +26,12 @@ class AsyncCredential(BaseCredential, AsyncTokenCredential):
 
     async def get_token(self, *scopes: Any, **kwargs: Any) -> AccessToken:
         scopes_tuple = self.build_scopes_tuple(scopes)
-        cached = self.get_cached_token(scopes_tuple)
+        cached = self.get_cached_token(scopes_tuple, kwargs)
         if cached:
             return cached
 
         token = await self.credential.get_token(*scopes_tuple, **kwargs)
-        self.store_cached_token(scopes_tuple, token)
+        self.store_cached_token(scopes_tuple, kwargs, token)
         return token
 
     def build_credential(self) -> AsyncChainedTokenCredential:
@@ -52,9 +52,9 @@ class AsyncCredential(BaseCredential, AsyncTokenCredential):
                 logger.debug(f"Failed to instantiate browser credential: {exc}")
 
         for credential_type in (
-            AsyncAzureCliCredential,
             AsyncWorkloadIdentityCredential,
             AsyncManagedIdentityCredential,
+            AsyncAzureCliCredential,
         ):
             try:
                 credentials.append(credential_type())
