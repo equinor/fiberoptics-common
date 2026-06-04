@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from typing import Any
 
 from azure.core.credentials import AccessToken
@@ -15,9 +14,7 @@ from azure.identity.aio import (
 )
 
 from ._base import BaseCredential
-from ._browser import AsyncInteractiveBrowserCredential, use_browser_credentials
-
-logger = logging.getLogger("fiberoptics.common")
+from ._browser import AsyncInteractiveBrowserCredential
 
 
 class AsyncCredential(BaseCredential, AsyncTokenCredential):
@@ -35,33 +32,8 @@ class AsyncCredential(BaseCredential, AsyncTokenCredential):
         return token
 
     def build_credential(self) -> AsyncChainedTokenCredential:
-        credentials: list[AsyncTokenCredential] = []
-
-        if use_browser_credentials():
-            try:
-                browser_kwargs = self.get_browser_kwargs()
-                credentials.append(
-                    AsyncInteractiveBrowserCredential(
-                        resource_id=self.resource_id,
-                        scope=self.scope,
-                        persist_auth_record=True,
-                        **browser_kwargs,
-                    )
-                )
-            except Exception as exc:
-                logger.debug(f"Failed to instantiate browser credential: {exc}")
-
-        for credential_type in (
-            AsyncWorkloadIdentityCredential,
-            AsyncManagedIdentityCredential,
-            AsyncAzureCliCredential,
-        ):
-            try:
-                credentials.append(credential_type())
-            except Exception as exc:
-                logger.debug(f"Failed to instantiate {credential_type.__name__}: {exc}")
-
-        if not credentials:
-            raise RuntimeError("No Azure credentials could be instantiated")
-
-        return AsyncChainedTokenCredential(*credentials)
+        return self._build_credential_chain(
+            chain_type=AsyncChainedTokenCredential,
+            browser_cls=AsyncInteractiveBrowserCredential,
+            credential_types=(AsyncWorkloadIdentityCredential, AsyncManagedIdentityCredential, AsyncAzureCliCredential),
+        )

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from abc import ABC, abstractmethod
 from typing import Any, ClassVar
@@ -9,6 +10,10 @@ from typing import Any, ClassVar
 from azure.core.credentials import AccessToken
 from azure.identity import ChainedTokenCredential
 from azure.identity.aio import ChainedTokenCredential as AsyncChainedTokenCredential
+
+from ._browser import use_browser_credentials
+
+logger = logging.getLogger("fiberoptics.common")
 
 
 class BaseCredential(ABC):
@@ -63,6 +68,34 @@ class BaseCredential(ABC):
             )
             if value is not None
         }
+
+    def _build_credential_chain(self, *, chain_type, browser_cls, credential_types: tuple):
+        credentials = []
+
+        if use_browser_credentials():
+            try:
+                browser_kwargs = self.get_browser_kwargs()
+                credentials.append(
+                    browser_cls(
+                        resource_id=self.resource_id,
+                        scope=self.scope,
+                        persist_auth_record=True,
+                        **browser_kwargs,
+                    )
+                )
+            except Exception as exc:
+                logger.debug(f"Failed to instantiate browser credential: {exc}")
+
+        for credential_type in credential_types:
+            try:
+                credentials.append(credential_type())
+            except Exception as exc:
+                logger.debug(f"Failed to instantiate {credential_type.__name__}: {exc}")
+
+        if not credentials:
+            raise RuntimeError("No Azure credentials could be instantiated")
+
+        return chain_type(*credentials)
 
     @abstractmethod
     def build_credential(self) -> ChainedTokenCredential | AsyncChainedTokenCredential:

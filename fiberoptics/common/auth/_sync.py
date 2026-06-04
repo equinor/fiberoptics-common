@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from typing import Any
 
 from azure.core.credentials import AccessToken, TokenCredential
@@ -14,9 +13,7 @@ from azure.identity import (
 )
 
 from ._base import BaseCredential
-from ._browser import SyncInteractiveBrowserCredential, use_browser_credentials
-
-logger = logging.getLogger("fiberoptics.common")
+from ._browser import SyncInteractiveBrowserCredential
 
 
 class Credential(BaseCredential, TokenCredential):
@@ -34,33 +31,8 @@ class Credential(BaseCredential, TokenCredential):
         return token
 
     def build_credential(self) -> ChainedTokenCredential:
-        credentials: list[TokenCredential] = []
-
-        if use_browser_credentials():
-            try:
-                browser_kwargs = self.get_browser_kwargs()
-                credentials.append(
-                    SyncInteractiveBrowserCredential(
-                        resource_id=self.resource_id,
-                        scope=self.scope,
-                        persist_auth_record=True,
-                        **browser_kwargs,
-                    )
-                )
-            except Exception as exc:
-                logger.debug(f"Failed to instantiate browser credential: {exc}")
-
-        for credential_type in (
-            WorkloadIdentityCredential,
-            ManagedIdentityCredential,
-            AzureCliCredential,
-        ):
-            try:
-                credentials.append(credential_type())
-            except Exception as exc:
-                logger.debug(f"Failed to instantiate {credential_type.__name__}: {exc}")
-
-        if not credentials:
-            raise RuntimeError("No Azure credentials could be instantiated")
-
-        return ChainedTokenCredential(*credentials)
+        return self._build_credential_chain(
+            chain_type=ChainedTokenCredential,
+            browser_cls=SyncInteractiveBrowserCredential,
+            credential_types=(WorkloadIdentityCredential, ManagedIdentityCredential, AzureCliCredential),
+        )
