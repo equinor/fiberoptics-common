@@ -24,6 +24,8 @@ class BaseCredential(ABC):
         self.scope = f"{resource_id}/.default" if resource_id else None
         self._cache_skew = kwargs.pop("cache_skew", self._default_cache_skew)
         self._kwargs = kwargs
+        # Per-instance cache: multiple Credential instances (e.g. for different
+        # resource_ids) maintain independent token caches by design.
         self._cached_access_tokens: dict[tuple, AccessToken] = {}
         self._credential = self.build_credential()
 
