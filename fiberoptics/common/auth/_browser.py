@@ -60,7 +60,7 @@ def load_authentication_record(resource_id: str | None = None) -> Authentication
     try:
         with open(path, "r") as fh:
             return AuthenticationRecord.deserialize(fh.read())
-    except BaseException as exc:
+    except Exception as exc:
         logger.debug(f"Failed to load authentication record: {exc}")
         return None
 
@@ -70,7 +70,7 @@ def save_authentication_record(record: AuthenticationRecord, resource_id: str | 
     try:
         with open(path, "w") as fh:
             fh.write(record.serialize())
-    except BaseException as exc:
+    except Exception as exc:
         logger.warning(f"Failed to save authentication record: {exc}")
 
 
@@ -132,7 +132,7 @@ class InteractiveBrowserCredentialBase(ABC):
                 preferred_scope = [scope] if scope else None
                 new_record = self._credential.authenticate(scopes=preferred_scope)
                 save_authentication_record(new_record, resource_id)
-            except BaseException as exc:
+            except Exception as exc:
                 logger.warning(f"Failed to authenticate and save record: {exc}")
 
     @property

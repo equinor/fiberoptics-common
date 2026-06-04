@@ -48,7 +48,7 @@ class AsyncCredential(BaseCredential, AsyncTokenCredential):
                         **browser_kwargs,
                     )
                 )
-            except BaseException as exc:
+            except Exception as exc:
                 logger.debug(f"Failed to instantiate browser credential: {exc}")
 
         for credential_type in (
@@ -58,7 +58,7 @@ class AsyncCredential(BaseCredential, AsyncTokenCredential):
         ):
             try:
                 credentials.append(credential_type())
-            except BaseException as exc:
+            except Exception as exc:
                 logger.debug(f"Failed to instantiate {credential_type.__name__}: {exc}")
 
         if not credentials:
