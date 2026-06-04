@@ -141,49 +141,11 @@ class InteractiveBrowserCredentialBase(ABC):
 
 
 class SyncInteractiveBrowserCredential(InteractiveBrowserCredentialBase, TokenCredential):
-    def __init__(
-        self,
-        *,
-        resource_id: str | None,
-        scope: str | None,
-        persist_auth_record: bool,
-        client_id: str | None = None,
-        tenant_id: str | None = None,
-        redirect_uri: str | None = None,
-    ):
-        super().__init__(
-            resource_id=resource_id,
-            scope=scope,
-            persist_auth_record=persist_auth_record,
-            client_id=client_id,
-            tenant_id=tenant_id,
-            redirect_uri=redirect_uri,
-        )
-
     def get_token(self, *scopes: Any, **kwargs: Any) -> AccessToken:
         return self.credential.get_token(*scopes, **kwargs)
 
 
 class AsyncInteractiveBrowserCredential(InteractiveBrowserCredentialBase, AsyncTokenCredential):
-    def __init__(
-        self,
-        *,
-        resource_id: str | None,
-        scope: str | None,
-        persist_auth_record: bool,
-        client_id: str | None = None,
-        tenant_id: str | None = None,
-        redirect_uri: str | None = None,
-    ):
-        super().__init__(
-            resource_id=resource_id,
-            scope=scope,
-            persist_auth_record=persist_auth_record,
-            client_id=client_id,
-            tenant_id=tenant_id,
-            redirect_uri=redirect_uri,
-        )
-
     async def get_token(self, *scopes: Any, **kwargs: Any) -> AccessToken:
         loop = asyncio.get_running_loop()
         call = partial(self.credential.get_token, *scopes, **kwargs)
