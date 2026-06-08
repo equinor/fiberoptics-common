@@ -54,7 +54,7 @@ class AsyncCredential(BaseCredential, AsyncTokenCredential):
 
         for credential_type, type_kwargs in (
             (AsyncWorkloadIdentityCredential, {}),
-            (AsyncManagedIdentityCredential, {"client_id": os.environ.get("AZURE_CLIENT_ID")}),
+            (AsyncManagedIdentityCredential, {"client_id": os.environ.get("AZURE_CLIENT_ID") or None}),
             (AsyncAzureCliCredential, {}),
         ):
             try:

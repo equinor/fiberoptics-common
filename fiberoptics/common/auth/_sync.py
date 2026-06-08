@@ -53,7 +53,7 @@ class Credential(BaseCredential, TokenCredential):
 
         for credential_type, type_kwargs in (
             (WorkloadIdentityCredential, {}),
-            (ManagedIdentityCredential, {"client_id": os.environ.get("AZURE_CLIENT_ID")}),
+            (ManagedIdentityCredential, {"client_id": os.environ.get("AZURE_CLIENT_ID") or None}),
             (AzureCliCredential, {}),
         ):
             try:
