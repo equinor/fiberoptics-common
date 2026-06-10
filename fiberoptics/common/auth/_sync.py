@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 from azure.core.credentials import AccessToken, TokenCredential
@@ -50,13 +51,13 @@ class Credential(BaseCredential, TokenCredential):
             except BaseException as exc:
                 logger.debug(f"Failed to instantiate browser credential: {exc}")
 
-        for credential_type in (
-            WorkloadIdentityCredential,
-            ManagedIdentityCredential,
-            AzureCliCredential,
+        for credential_type, type_kwargs in (
+            (WorkloadIdentityCredential, {}),
+            (ManagedIdentityCredential, {"client_id": os.environ.get("AZURE_CLIENT_ID") or None}),
+            (AzureCliCredential, {}),
         ):
             try:
-                credentials.append(credential_type())
+                credentials.append(credential_type(**type_kwargs))
             except BaseException as exc:
                 logger.debug(f"Failed to instantiate {credential_type.__name__}: {exc}")
 
