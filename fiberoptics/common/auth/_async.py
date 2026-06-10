@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 from azure.core.credentials import AccessToken
@@ -26,12 +27,12 @@ class AsyncCredential(BaseCredential, AsyncTokenCredential):
 
     async def get_token(self, *scopes: Any, **kwargs: Any) -> AccessToken:
         scopes_tuple = self.build_scopes_tuple(scopes)
-        cached = self.get_cached_token(scopes_tuple)
+        cached = self.get_cached_token(scopes_tuple, kwargs)
         if cached:
             return cached
 
         token = await self.credential.get_token(*scopes_tuple, **kwargs)
-        self.store_cached_token(scopes_tuple, token)
+        self.store_cached_token(scopes_tuple, kwargs, token)
         return token
 
     def build_credential(self) -> AsyncChainedTokenCredential:
@@ -51,13 +52,13 @@ class AsyncCredential(BaseCredential, AsyncTokenCredential):
             except BaseException as exc:
                 logger.debug(f"Failed to instantiate browser credential: {exc}")
 
-        for credential_type in (
-            AsyncAzureCliCredential,
-            AsyncWorkloadIdentityCredential,
-            AsyncManagedIdentityCredential,
+        for credential_type, type_kwargs in (
+            (AsyncWorkloadIdentityCredential, {}),
+            (AsyncManagedIdentityCredential, {"client_id": os.environ.get("AZURE_CLIENT_ID") or None}),
+            (AsyncAzureCliCredential, {}),
         ):
             try:
-                credentials.append(credential_type())
+                credentials.append(credential_type(**type_kwargs))
             except BaseException as exc:
                 logger.debug(f"Failed to instantiate {credential_type.__name__}: {exc}")
 

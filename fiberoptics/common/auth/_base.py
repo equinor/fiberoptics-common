@@ -7,11 +7,8 @@ from abc import ABC, abstractmethod
 from typing import Any, ClassVar
 
 from azure.core.credentials import AccessToken
-from azure.identity import AzureCliCredential, ChainedTokenCredential
-from azure.identity.aio import (
-    AzureCliCredential as AsyncAzureCliCredential,
-    ChainedTokenCredential as AsyncChainedTokenCredential,
-)
+from azure.identity import ChainedTokenCredential
+from azure.identity.aio import ChainedTokenCredential as AsyncChainedTokenCredential
 
 
 class BaseCredential(ABC):
@@ -21,7 +18,7 @@ class BaseCredential(ABC):
         self.resource_id = resource_id
         self.scope = f"{resource_id}/.default" if resource_id else None
         self._kwargs = kwargs
-        self._azure_cli_access_tokens: dict[tuple[str, ...], AccessToken] = {}
+        self._cached_access_tokens: dict[tuple, AccessToken] = {}
         self._credential = self.build_credential()
 
     @property
@@ -31,18 +28,26 @@ class BaseCredential(ABC):
     def build_scopes_tuple(self, scopes: tuple[Any, ...]) -> tuple[str, ...]:
         return tuple([self.scope] if len(scopes) == 0 and self.scope else scopes)
 
-    def get_cached_token(self, scopes_tuple: tuple[str, ...]) -> AccessToken | None:
-        successful = getattr(self.credential, "_successful_credential", None)
-        if successful and isinstance(successful, (AzureCliCredential, AsyncAzureCliCredential)):
-            token = self._azure_cli_access_tokens.get(scopes_tuple)
-            if token is not None and int(time.time()) < token.expires_on - self._cache_skew:
-                return token
+    @staticmethod
+    def _cache_key(scopes_tuple: tuple[str, ...], kwargs: dict[str, Any]) -> tuple:
+        tenant_id = kwargs.get("tenant_id")
+        enable_cae = kwargs.get("enable_cae", False)
+        return (scopes_tuple, tenant_id, enable_cae)
+
+    def get_cached_token(self, scopes_tuple: tuple[str, ...], kwargs: dict[str, Any]) -> AccessToken | None:
+        if kwargs.get("claims"):
+            return None
+        key = self._cache_key(scopes_tuple, kwargs)
+        token = self._cached_access_tokens.get(key)
+        if token is not None and int(time.time()) < token.expires_on - self._cache_skew:
+            return token
         return None
 
-    def store_cached_token(self, scopes_tuple: tuple[str, ...], token: AccessToken) -> None:
-        successful = getattr(self.credential, "_successful_credential", None)
-        if successful and isinstance(successful, (AzureCliCredential, AsyncAzureCliCredential)):
-            self._azure_cli_access_tokens[scopes_tuple] = token
+    def store_cached_token(self, scopes_tuple: tuple[str, ...], kwargs: dict[str, Any], token: AccessToken) -> None:
+        if kwargs.get("claims"):
+            return
+        key = self._cache_key(scopes_tuple, kwargs)
+        self._cached_access_tokens[key] = token
 
     def get_browser_kwargs(self) -> dict[str, Any]:
         return {
